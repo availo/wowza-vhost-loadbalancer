@@ -42,17 +42,23 @@ already done so.
 Step 3:
 Change the <ServerListener><BaseClass> in Server.xml (from "listener"-step 4
 in the original README.html) to the following value:
-`<BaseClass>com.availo.wms.plugin.vhostloadbalancer.ServerListenerLoadBalancerListener</BaseClass>`
+```xml
+<BaseClass>com.availo.wms.plugin.vhostloadbalancer.ServerListenerLoadBalancerListener</BaseClass>
+```
 
 The "loadBalancerListenerRedirectorClass"-property in Server.xml (also from
 step 4 in the original documentation) on the LoadBalancer Listener needs to be
 updated. New value:
-`<Value>com.availo.wms.plugin.vhostloadbalancer.LoadBalancerRedirectorBandwidth</Value>`
+```xml
+<Value>com.availo.wms.plugin.vhostloadbalancer.LoadBalancerRedirectorBandwidth</Value>
+```
 
 Step 4:
 In every active VHost.xml file (as defined in VHosts.xml), change the
 BaseClass (from step 5 in the original README.html) to the following value:
-`<BaseClass>com.availo.wms.plugin.vhostloadbalancer.HTTPLoadBalancerRedirector</BaseClass>`
+```xml
+<BaseClass>com.availo.wms.plugin.vhostloadbalancer.HTTPLoadBalancerRedirector</BaseClass>
+```
 
 Change all instances of "enableServerInfoXML" to "enableServerInfo", as this
 version has support for more output formats. (JSON)
@@ -73,11 +79,15 @@ already done so.
 Step 2:
 Change the <ServerListener><BaseClass> (from step 3 in the original
 README.html) to the following value:
-`<BaseClass>com.availo.wms.plugin.vhostloadbalancer.ServerListenerLoadBalancerSender</BaseClass>`
+```xml
+<BaseClass>com.availo.wms.plugin.vhostloadbalancer.ServerListenerLoadBalancerSender</BaseClass>
+```
 
 The "loadBalancerSenderMonitorClass"-property, also in Server.xml, needs to be
 updated as well. New value:
-`<Value>com.availo.wms.plugin.vhostloadbalancer.LoadBalancerMonitorVhost</Value>`
+```xml
+<Value>com.availo.wms.plugin.vhostloadbalancer.LoadBalancerMonitorVhost</Value>
+```
 
 Optional step 3:
 While still in Server.xml, you may also add a different weight for the current
@@ -132,4 +142,6 @@ section for the respective VHost.
 
 Step 6:
 Change the ModuleLoadBalancerRedirector-module to the following:
-`<Class>com.availo.wms.plugin.vhostloadbalancer.ModuleLoadBalancerRedirector</Class>`
+```xml
+<Class>com.availo.wms.plugin.vhostloadbalancer.ModuleLoadBalancerRedirector</Class>
+```
