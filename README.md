@@ -7,7 +7,7 @@ module with extreme caution for the time being, and don't trust it to
 do anything you believe it ought to do.
 
 Feel free to send any questions, suggestions or comments to me on
-github@segfault.no
+github -- at -- segfault.no
 
 ## Prerequisites:
 
@@ -87,11 +87,13 @@ a particular server has, compared to other servers.
 If all servers has the same capacity, skipping this option completely is fine.
 
 To use a different weight, add the following property to the bottom of Server.xml:
-	<Property>
-		<Name>loadBalancerSenderServerWeight</Name>
-		<Value>5</Value>
-		<Type>Integer</Type>
-	</Property>
+```xml
+<Property>
+	<Name>loadBalancerSenderServerWeight</Name>
+	<Value>5</Value>
+	<Type>Integer</Type>
+</Property>
+```
 
 In the example above, the weight of 5 would mean that a particular server can
 handle 5 times the traffic compared to a server with the default weight of 1.
@@ -118,10 +120,12 @@ leave it blank.
 Step 5:
 
 Add a "loadBalancerVhostRedirectAddress" property to all active VHost.xml files:
-	<Property>
-		<Name>loadBalancerVhostRedirectAddress</Name>
-		<Value>[vhost-ip-address]</Value>
-	</Property>
+```xml
+<Property>
+	<Name>loadBalancerVhostRedirectAddress</Name>
+	<Value>[vhost-ip-address]</Value>
+</Property>
+```
 
 This IP address should be the same as you have defined in the first <HostPort>
 section for the respective VHost.
