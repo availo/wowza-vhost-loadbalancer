@@ -56,12 +56,12 @@ public class LoadBalancerRedirectorBandwidth implements ILoadBalancerRedirector 
 					}
 					else {
 						// This is probably either a configuration error, or a VHost that isn't intended to be used for load balancing
-						WMSLoggerFactory.getLogger(LoadBalancerRedirectorBandwidth.class).error("LoadBalancerRedirectorConcurrentConnects.getRedirect: Got a redirect request from vhost '" + vhostName + "', but we couldn't find any redirect address for this vhost.");
+						WMSLoggerFactory.getLogger(LoadBalancerRedirectorBandwidth.class).warn("LoadBalancerRedirectorConcurrentConnects.getRedirect: Got a redirect request from vhost '" + vhostName + "', but we couldn't find any redirect address for this vhost.");
 					}
 				}
 				else {
 					// This could mean that none of the load balancer senders are updated to use the 
-					WMSLoggerFactory.getLogger(LoadBalancerRedirectorBandwidth.class).error("LoadBalancerRedirectorConcurrentConnects.getRedirect: Got a redirect request from vhost '" + vhostName + "', but we couldn't find any properties for this vhost.");
+					WMSLoggerFactory.getLogger(LoadBalancerRedirectorBandwidth.class).warn("LoadBalancerRedirectorConcurrentConnects.getRedirect: Got a redirect request from vhost '" + vhostName + "', but we couldn't find any properties for this vhost.");
 				}
 			}
 			// Use this to return null if the requested vhost is unknown
@@ -142,43 +142,51 @@ public class LoadBalancerRedirectorBandwidth implements ILoadBalancerRedirector 
 			 *  Should be safe, I guess, since "servers", as opposed to "serverMap", is used by getRedirect().
 			 */
 			Iterator<ServerHolder> iter = servers.iterator();
+
+			// Iterate through all the "LoadBalancerSender"-servers that are currently active
 			while (iter.hasNext()) {
 				ServerHolder serverHolder = iter.next();
-
 				Map<String, Object> map = new HashMap<String, Object>();
 
 				map.put("serverId", serverHolder.serverId);
 				map.put("status", LoadBalancerUtils.statusToString(serverHolder.status));
 				String redirectAddress = null;
+				// This means that the getInfo-request came through an IP address that we know belongs to a VHost on the LoadBalancerListener. Ignore all other vhosts.
 				if (vhostName != null) {
 					if (serverHolder != null && serverHolder.vhosts != null) {
 						if (serverHolder.vhosts.containsKey(vhostName)) {
 							Map<String, Object> vhostProperties = (Map<String, Object>)serverHolder.vhosts.get(vhostName);
-							if (vhostProperties.containsKey("redirectAddress")) {
+							// We found a redirect address for this VHost, and everything works as intended. Remember this VHost's redirect address, so we can add it later on
+							if (vhostProperties.containsKey("redirectAddress") && vhostProperties.get("redirectAddress") != null) {
 								redirectAddress = (String)vhostProperties.get("redirectAddress");
-								map.put("redirect", redirectAddress);
 							}
-							else {
-								// This is probably either a configuration error, or a VHost that isn't intended to be used for load balancing
-								WMSLoggerFactory.getLogger(LoadBalancerRedirectorBandwidth.class).error("LoadBalancerRedirectorConcurrentConnects.getRedirect: Got a redirect request from vhost '" + vhostName + "', but we couldn't find any redirect address for this vhost. Check the relevant VHost.xml config on all LoadBalancerSenders.");
+							// No redirect address for this VHost, but we have other properties. Log this as an error.
+							else { // !vhostProperties.containsKey("redirectAddress")
+								// This is probably either one or more servers with a configuration error, or a redirect request through a VHost that isn't intended to be used for load balancing
+								WMSLoggerFactory.getLogger(LoadBalancerRedirectorBandwidth.class).warn("LoadBalancerRedirectorConcurrentConnects.getInfo: Got a redirect request from vhost '" + vhostName + "', but we couldn't find any redirect address for this vhost. Check the relevant VHost.xml config on '" + serverHolder.redirect + "'");
 							}
 						}
-						else {
-							// This could mean that none of the load balancer senders are updated to use the 
-							WMSLoggerFactory.getLogger(LoadBalancerRedirectorBandwidth.class).error("LoadBalancerRedirectorConcurrentConnects.getRedirect: Got a redirect request from vhost '" + vhostName + "', but we couldn't find any properties for this vhost.");
+						// The requested VHost doesn't exist in the LoadBalancer config for this server. 
+						else { // !serverHolder.vhosts.containsKey(vhostName)
+							// Same as above, this is probably either one or more servers with a configuration error, or a redirect request through a VHost that isn't intended to be used for load balancing 
+							WMSLoggerFactory.getLogger(LoadBalancerRedirectorBandwidth.class).warn("LoadBalancerRedirectorConcurrentConnects.getInfo: Got a redirect request from vhost '" + vhostName + "', but we couldn't find any properties for this vhost on the server '" + serverHolder.redirect + "'");
 						}
 					}
-					else {
-						// This means that *no* vhosts are known at all.
-						WMSLoggerFactory.getLogger(LoadBalancerRedirectorBandwidth.class).error("LoadBalancerRedirectorConcurrentConnects.getRedirect: Got a redirect request from vhost '" + vhostName + "', but we have no information about any VHost at all. Check the modules and configs on all LoadBalancerSenders.");
+					else { // serverHolder == null || serverHolder.vhosts == null
+						// This means that *no* vhosts are known at all for this particular server (serverHolder).
+						// Likely cause for this is one or more servers with a "stock" LoadBalancer, i.e. not running VHostloadBalancer
+						WMSLoggerFactory.getLogger(LoadBalancerRedirectorBandwidth.class).warn("LoadBalancerRedirectorConcurrentConnects.getInfo: Got a redirect request from vhost '" + vhostName + "', but we have a server with no VHost data. Check the modules and configs on '" + serverHolder.redirect + "'");
 					}
 				}
 
-				/*
-				 *  You might want to change this to *only* count if there are no vhosts at all, to avoid potential errorenous redirects.
-				 *  Currently, this will use the default redirectAddress from Server.xml, for legacy servers. Possibly not a good idea in all use-cases.
-				 */
-				if (redirectAddress == null) {
+				
+				if (redirectAddress != null) {
+					// This means that we found a redirect address for this particular VHost, so let's use it
+					map.put("redirect", redirectAddress);
+				}
+				else {
+					 // This will use the default redirectAddress from Server.xml, for legacy servers. Possibly not a good idea in all use-cases.
+					//WMSLoggerFactory.getLogger(LoadBalancerRedirectorBandwidth.class).info("LoadBalancerRedirectorConcurrentConnects.getInfo: Adding default redirect address '" + serverHolder.redirect + "' to the server list for VHost '" + vhostName + "'.");
 					map.put("redirect", serverHolder.redirect);
 				}
 
