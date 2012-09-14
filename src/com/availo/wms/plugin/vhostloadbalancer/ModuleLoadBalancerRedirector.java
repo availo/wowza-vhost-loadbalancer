@@ -13,7 +13,7 @@ import com.wowza.wms.plugin.loadbalancer.*;
 
 public class ModuleLoadBalancerRedirector extends ModuleBase {
 	private LoadBalancerListener listener = null;
-	private ILoadBalancerRedirector redirector = null;
+	private LoadBalancerRedirectorBandwidth redirector = null;
 
 	private String redirectAppName = null;
 	private int redirectPort = -1;
@@ -21,11 +21,11 @@ public class ModuleLoadBalancerRedirector extends ModuleBase {
 	private boolean redirectOnConnect = true;
 
 	private String getFullName(IApplicationInstance appInstance) {
-		return appInstance.getApplication().getName() + "/" + appInstance.getName();
+		return appInstance.getVHost().getName() + "/" + appInstance.getApplication().getName() + "/" + appInstance.getName();
 	}
 
 	private String getFullName(IClient client) {
-		return client.getAppInstance().getApplication().getName() + "/" + client.getAppInstance().getName();
+		return client.getAppInstance().getVHost().getName() + "/" + client.getAppInstance().getApplication().getName() + "/" + client.getAppInstance().getName();
 	}
 
 	public void onAppStart(IApplicationInstance appInstance) {
@@ -44,7 +44,7 @@ public class ModuleLoadBalancerRedirector extends ModuleBase {
 				break;
 			}
 
-			this.redirector = this.listener.getRedirector();
+			this.redirector = (LoadBalancerRedirectorBandwidth) this.listener.getRedirector();
 			if (this.redirector == null) {
 				getLogger().warn("ModuleLoadBalancerRedirector.onAppStart[" + getFullName(appInstance) + "]: ILoadBalancerRedirector not found. All connections to this application will be refused.");
 				break;
@@ -62,6 +62,7 @@ public class ModuleLoadBalancerRedirector extends ModuleBase {
 		boolean isDebugLog = getLogger().isDebugEnabled();
 
 		String ret = "unknown";
+		String vhostName = client.getAppInstance().getVHost().getName();
 		while (true) {
 			if (this.redirector == null) {
 				if (isDebugLog)
@@ -69,7 +70,7 @@ public class ModuleLoadBalancerRedirector extends ModuleBase {
 				break;
 			}
 
-			LoadBalancerRedirect redirect = this.redirector.getRedirect();
+			LoadBalancerRedirect redirect = this.redirector.getRedirect(vhostName);
 			if (redirect == null) {
 				client.rejectConnection("ModuleLoadBalancerRedirector.onConnect[" + getFullName(client) + "]: Redirect failed.");
 				if (isDebugLog)
@@ -85,8 +86,10 @@ public class ModuleLoadBalancerRedirector extends ModuleBase {
 	}
 
 	public void onConnect(IClient client, RequestFunction function, AMFDataList params) {
+		getLogger().info("ModuleLoadBalancerRedirector.onConnect: " + getFullName(client));
 		if (this.redirectOnConnect) {
 			boolean isDebugLog = getLogger().isDebugEnabled();
+			String vhostName = client.getAppInstance().getVHost().getName();
 			while (true) {
 				if (this.redirector == null) {
 					client.rejectConnection("ModuleLoadBalancerRedirector.onConnect[" + getFullName(client) + "]: ILoadBalancerRedirector not found.");
@@ -95,7 +98,7 @@ public class ModuleLoadBalancerRedirector extends ModuleBase {
 					break;
 				}
 
-				LoadBalancerRedirect redirect = this.redirector.getRedirect();
+				LoadBalancerRedirect redirect = this.redirector.getRedirect(vhostName);
 				if (redirect == null) {
 					client.rejectConnection("ModuleLoadBalancerRedirector.onConnect[" + getFullName(client) + "]: Redirect failed.");
 					if (isDebugLog)
