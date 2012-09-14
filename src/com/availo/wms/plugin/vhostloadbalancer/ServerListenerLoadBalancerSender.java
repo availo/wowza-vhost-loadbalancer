@@ -1,6 +1,6 @@
 /*
- * This file is almost completely unchanged, except for standard Eclipse-formatting,
- * and is just added for completeness' sake.
+ * This file is currently almost completely unchanged, except for standard
+ * Eclipse-formatting, and is just added for completeness' sake.
  */
 
 package com.availo.wms.plugin.vhostloadbalancer;
@@ -44,11 +44,13 @@ public class ServerListenerLoadBalancerSender implements IServerNotify2 {
 		monitorClass = props.getPropertyStr("loadBalancerSenderMonitorClass", monitorClass);
 		messageInterval = props.getPropertyInt("loadBalancerSenderMessageInterval", messageInterval);
 
-		if (redirectAddress != null)
+		if (redirectAddress != null) {
 			redirectAddress = SystemUtils.expandEnvironmentVariables(redirectAddress);
+		}
 
-		if (targetPath != null)
+		if (targetPath != null) {
 			targetPath = SystemUtils.expandEnvironmentVariables(targetPath);
+		}
 
 		ILoadBalancerMonitor loadBalancerMonitor = null;
 		if (monitorClass != null) {
@@ -93,8 +95,9 @@ public class ServerListenerLoadBalancerSender implements IServerNotify2 {
 	public void onServerShutdownStart(IServer server) {
 		WMSLoggerFactory.getLogger(ServerListenerLoadBalancerSender.class).info("ServerListenerLoadBalancerSender.onServerShutdownStart");
 
-		if (loadBalancerWorker != null)
+		if (loadBalancerWorker != null) {
 			loadBalancerWorker.quit();
+		}
 		loadBalancerWorker = null;
 
 		loadBalancerSender.setStatus(LoadBalancerServer.STATUS_STOPPED);

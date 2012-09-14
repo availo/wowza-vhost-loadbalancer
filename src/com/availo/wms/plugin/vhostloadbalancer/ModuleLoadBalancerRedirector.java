@@ -11,6 +11,15 @@ import com.wowza.wms.application.*;
 import com.wowza.wms.client.*;
 import com.wowza.wms.plugin.loadbalancer.*;
 
+/**
+ * Wowza application redirector class with support for HTTP and RTMP redirecting per VHost
+ * 
+ * This module should be included in application configs (Application.xml)
+ * 
+ * @author Brynjar Eide <brynjar@availo.no>
+ * @version 1.0b, 2012-09-14
+ *
+ */
 public class ModuleLoadBalancerRedirector extends ModuleBase {
 	private LoadBalancerListener listener = null;
 	private LoadBalancerRedirectorBandwidth redirector = null;

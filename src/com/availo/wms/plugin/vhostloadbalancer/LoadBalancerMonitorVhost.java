@@ -96,6 +96,8 @@ public class LoadBalancerMonitorVhost extends LoadBalancerMonitorDefault {
 		 */
 		message.append("customProperties:" + customProperties + "\n");
 
-		WMSLoggerFactory.getLogger(LoadBalancerMonitorVhost.class).debug("LoadBalancerMonitorVHost.appendToMessage: Properties: " + customProperties);
+		if (isDebugLog) {
+			WMSLoggerFactory.getLogger(LoadBalancerMonitorVhost.class).debug("LoadBalancerMonitorVHost.appendToMessage: Properties: " + customProperties);
+		}
 	}
 }
