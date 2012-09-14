@@ -78,7 +78,7 @@ server" from README.html in the original LoadBalancer 2.0 application.
 Download this from http://www.wowza.com/forums/content.php?108 if you haven't
 already done so.
 
-### Step 2
+#### Step 2
 Change the &lt;ServerListener&gt;&lt;BaseClass&gt; (from step 3 in the original
 README.html) to the following value:
 ```xml
@@ -91,7 +91,7 @@ updated as well. New value:
 <Value>com.availo.wms.plugin.vhostloadbalancer.LoadBalancerMonitorVhost</Value>
 ```
 
-### Step 3 (optional)
+#### Step 3 (optional)
 While still in Server.xml, you may also add a different weight for the current
 server. The server weight defaults to 1. Weight works by increasing the capacity
 a particular server has, compared to other servers.
@@ -120,7 +120,7 @@ Please be adviced: a server can *not* have a weight of 0. The correct way
 to handle this is to pause (or stop) the server, as described in README.html
 from the original LoadBalancer 2.0 module.
 
-### Step 4 (optional)
+#### Step 4 (optional)
 If you *know* you will only use VHost-aware loadbalancers, you may remove the
 loadBalancerSenderRedirectAddress-property in Server.xml, as this will never
 be used when all senders and listeners support VHost-loadbalancing.
@@ -129,7 +129,7 @@ NB: I have not done extensive testing after removing this value completely.
 If you want to be cautious, you may want to just remove the "[redirect-address]",
 and leave it blank.
 
-### Step 5 (semi-optional)
+#### Step 5 (semi-optional)
 Add a "loadBalancerVhostRedirectAddress" property to all active VHost.xml files:
 ```xml
 <Property>
@@ -145,7 +145,7 @@ If this property is skipped, or left blank, the module will make an educated
 guess on what IP address to use for this particular VHost. It will always
 use the first IP address that listens to either port 80 or port 1935.
 
-### Step 6
+#### Step 6
 If the "Get least loaded server using Netconnection redirect"-method will be used,
 change the ModuleLoadBalancerRedirector-module in all relevant Application.xml files
 to the following:
