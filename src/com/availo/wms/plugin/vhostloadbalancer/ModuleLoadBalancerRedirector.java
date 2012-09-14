@@ -34,8 +34,9 @@ public class ModuleLoadBalancerRedirector extends ModuleBase {
 		this.redirectScheme = appInstance.getProperties().getPropertyStr("redirectScheme", this.redirectScheme);
 		this.redirectOnConnect = appInstance.getProperties().getPropertyBoolean("redirectOnConnect", this.redirectOnConnect);
 
-		if (redirectAppName != null)
+		if (redirectAppName != null) {
 			redirectAppName = redirectAppName.startsWith("/") ? redirectAppName : "/" + redirectAppName;
+		}
 
 		while (true) {
 			this.listener = (LoadBalancerListener) Server.getInstance().getProperties().get(ServerListenerLoadBalancerListener.PROP_LOADBALANCERLISTENER);
@@ -66,15 +67,15 @@ public class ModuleLoadBalancerRedirector extends ModuleBase {
 		while (true) {
 			if (this.redirector == null) {
 				if (isDebugLog)
-					getLogger().debug("ModuleLoadBalancerRedirector.onConnect[" + getFullName(client) + "]: ILoadBalancerRedirector not found.");
+					getLogger().debug("ModuleLoadBalancerRedirector.getLoadBalancerRedirect[" + getFullName(client) + "]: ILoadBalancerRedirector not found.");
 				break;
 			}
 
 			LoadBalancerRedirect redirect = this.redirector.getRedirect(vhostName);
 			if (redirect == null) {
-				client.rejectConnection("ModuleLoadBalancerRedirector.onConnect[" + getFullName(client) + "]: Redirect failed.");
+				client.rejectConnection("ModuleLoadBalancerRedirector.getLoadBalancerRedirect[" + getFullName(client) + "]: Redirect failed.");
 				if (isDebugLog)
-					getLogger().debug("ModuleLoadBalancerRedirector.onConnect[" + getFullName(client) + "]: Redirect failed.");
+					getLogger().debug("ModuleLoadBalancerRedirector.getLoadBalancerRedirect[" + getFullName(client) + "]: Redirect failed.");
 				break;
 			}
 
@@ -86,7 +87,6 @@ public class ModuleLoadBalancerRedirector extends ModuleBase {
 	}
 
 	public void onConnect(IClient client, RequestFunction function, AMFDataList params) {
-		getLogger().info("ModuleLoadBalancerRedirector.onConnect: " + getFullName(client));
 		if (this.redirectOnConnect) {
 			boolean isDebugLog = getLogger().isDebugEnabled();
 			String vhostName = client.getAppInstance().getVHost().getName();
@@ -107,6 +107,7 @@ public class ModuleLoadBalancerRedirector extends ModuleBase {
 				}
 
 				String uriStr = client.getUri();
+				getLogger().debug("ModuleLoadBalancerRedirector.onConnect[" + getFullName(client) + "]: old URI:" + uriStr);
 				if (uriStr == null) {
 					client.rejectConnection("ModuleLoadBalancerRedirector.onConnect[" + getFullName(client) + "]: URI missing.");
 					if (isDebugLog)
@@ -122,14 +123,18 @@ public class ModuleLoadBalancerRedirector extends ModuleBase {
 					String host = redirect.getHost();
 					String path = redirectAppName != null ? redirectAppName : uri.getPath();
 
-					URI newUri = new URI(scheme, uri.getUserInfo(), host, port, path, uri.getQuery(), uri.getFragment());
-					if (isDebugLog)
-						getLogger().debug("ModuleLoadBalancerRedirector.onConnect[" + getFullName(client) + "]: from:" + uriStr + " to:" + newUri.toString());
+					// Only add the "?stuff" parameters if the querystring has actual data
+					String queryString = (client.getQueryStr() != null && client.getQueryStr() != "") ? "?" + client.getQueryStr() : "";
 
-					String queryString = (client.getQueryStr() == "") ? "" : "?" + client.getQueryStr(); // ADDED
-					client.redirectConnection(newUri.toString() + queryString); // CHANGED
-																				// }
-					// client.redirectConnection(newUri.toString());
+					getLogger().debug("ModuleLoadBalancerRedirector.onConnect[" + getFullName(client) + "]: creating new URI:" + scheme + "," + uri.getUserInfo() + "," + host + "," + port + "," + path + "," + uri.getQuery() + "," + uri.getFragment());
+					URI newUri = new URI(scheme, uri.getUserInfo(), host, port, path, uri.getQuery(), uri.getFragment());
+					if (isDebugLog) {
+						getLogger().debug("ModuleLoadBalancerRedirector.onConnect[" + getFullName(client) + "]: from:" + uriStr + " to:" + newUri.toString() + queryString);
+					}
+
+					// Execute the redirect
+					client.redirectConnection(newUri.toString() + queryString);
+
 				} catch (Exception e) {
 					client.rejectConnection("ModuleLoadBalancerRedirector.onConnect[" + getFullName(client) + "]: Exception: " + e.toString());
 					if (isDebugLog)
@@ -141,22 +146,76 @@ public class ModuleLoadBalancerRedirector extends ModuleBase {
 	}
 
 	/**
-	 * Add redirect functionality for iOS-streams
-	 * @TODO This commented-out function is only here for reference right now.
-	 * Gratefully borrowed from Oleg Tokar (http://www.wowza.com/forums/showthread.php?17957-loadbalance-for-ios&p=92189#post92189)
+	 * Add redirect functionality for iOS-streams (HLS / Cupertino) and Flash HTTP-streams (HDS / San Jose)
+	 * Thanks to Oleg Tokar for providing a working example here: http://www.wowza.com/forums/showthread.php?17957-loadbalance-for-ios&p=92189#post92189
 	 * @param httpSession
 	 */
-	/*public void onHTTPSessionCreate(IHTTPStreamerSession httpSession) {
-        String queryServer = httpSession.getServerIp();
-        String clientIP = httpSession.getIpAddress();
-        String queryUri = httpSession.getUri();
-        int queryPort = httpSession.getServerPort();
-        String queryStr = httpSession.getQueryStr();
-        //getRedirector();
-        LoadBalancerRedirect redirect = this.redirector==null?null:this.redirector.getRedirect();
-        String redirectHost = redirect.getHost();
-        getLogger().info("-=redirector=- "+queryServer +" " +queryUri +" "+queryStr);
-        getLogger().info(clientIP +"[Redirected to:] "+"http://"+redirectHost+":"+queryPort+"/"+queryUri);
-        httpSession.redirectSession("http://"+redirectHost+":"+queryPort+"/"+queryUri+"?"+queryStr);
-    }*/
+	public void onHTTPSessionCreate(IHTTPStreamerSession httpSession) {
+		String vhostName = httpSession.getVHost().getName();
+		IApplicationInstance appInstance = httpSession.getAppInstance();
+
+		if (this.redirectOnConnect) {
+			boolean isDebugLog = getLogger().isDebugEnabled();
+			while (true) {
+				if (this.redirector == null) {
+					//httpSession.rejectSession("ModuleLoadBalancerRedirector.onHTTPSessionCreate[" + getFullName(appInstance) + "]: ILoadBalancerRedirector not found.");
+					httpSession.rejectSession(); // TODO figure out a way to add an error message to the client, like rejectConnection(String errorStr) offers
+					if (isDebugLog)
+						getLogger().debug("ModuleLoadBalancerRedirector.onHTTPSessionCreate[" + getFullName(appInstance) + "]: ILoadBalancerRedirector not found.");
+					break;
+				}
+
+				LoadBalancerRedirect redirect = this.redirector.getRedirect(vhostName);
+				if (redirect == null) {
+					//client.rejectConnection("ModuleLoadBalancerRedirector.onHTTPSessionCreate[" + getFullName(appInstance) + "]: Redirect failed.");
+					httpSession.rejectSession(); // TODO figure out a way to add an error message to the client, like rejectConnection(String errorStr) offers
+					if (isDebugLog)
+						getLogger().debug("ModuleLoadBalancerRedirector.onHTTPSessionCreate[" + getFullName(appInstance) + "]: Redirect failed.");
+					break;
+				}
+
+				if (httpSession.getUri() == null) {
+					//client.rejectConnection("ModuleLoadBalancerRedirector.onHTTPSessionCreate[" + getFullName(appInstance) + "]: URI missing.");
+					httpSession.rejectSession(); // TODO figure out a way to add an error message to the client, like rejectConnection(String errorStr) offers
+					if (isDebugLog)
+						getLogger().debug("ModuleLoadBalancerRedirector.onHTTPSessionCreate[" + getFullName(appInstance) + "]: URI missing.");
+					break;
+				}
+
+				// Unlike IClient.getUri(), httpSession.getUri() does *not* return an absolute URI, and is missing information about protocol, hostname and port.
+				String queryServer = httpSession.getServerIp();
+		        int queryPort = httpSession.getServerPort();
+		        // FIXME I don't like hardcoding "http://", in case anyone uses "https://" - find a way to get the protocol from IHTTPStreamerSession
+				String uriStr = "http://" + queryServer + ":" + queryPort + "/" + httpSession.getUri();
+				getLogger().debug("ModuleLoadBalancerRedirector.onHTTPSessionCreate[" + getFullName(appInstance) + "]: old URI:" + uriStr);
+
+				try {
+					URI uri = new URI(uriStr);
+
+					//String scheme = redirectScheme == null ? uri.getScheme() : redirectScheme; // This is probably not a good idea to use anymore, since we're dealing with completely different clients now.
+					int port = redirectPort > 0 ? redirectPort : uri.getPort(); // This should be okay, though.
+					String host = redirect.getHost();
+					String path = redirectAppName != null ? redirectAppName : uri.getPath();
+
+					getLogger().debug("ModuleLoadBalancerRedirector.onHTTPSessionCreate[" + getFullName(appInstance) + "]: creating new URI:" + uri.getScheme() + "," + uri.getUserInfo() + "," + host + "," + port + "," + path + "," + uri.getQuery() + "," + uri.getFragment());
+					URI newUri = new URI(uri.getScheme(), uri.getUserInfo(), host, port, path, uri.getQuery(), uri.getFragment());
+
+					if (isDebugLog) {
+						getLogger().debug("ModuleLoadBalancerRedirector.onHTTPSessionCreate[" + getFullName(appInstance) + "]: from:" + uriStr + " to:" + newUri.toString());
+					}
+
+					// Only add the "?stuff" parameters if the querystring has actual data
+					String queryString = (httpSession.getQueryStr() != null && httpSession.getQueryStr() != "") ? "?" + httpSession.getQueryStr() : "";
+					httpSession.redirectSession(newUri.toString() + queryString);
+
+				} catch (Exception e) {
+					//httpSession.rejectSession("ModuleLoadBalancerRedirector.onHTTPSessionCreate[" + getFullName(appInstance) + "]: Exception: " + e.toString());
+					httpSession.rejectSession(); // TODO figure out a way to add an error message to the client, like rejectConnection(String errorStr) offers
+					if (isDebugLog)
+						getLogger().error("ModuleLoadBalancerRedirector.onHTTPSessionCreate[" + getFullName(appInstance) + "]: Exception: " + e.toString());
+				}
+				break;
+			}
+		}
+    }
 }
