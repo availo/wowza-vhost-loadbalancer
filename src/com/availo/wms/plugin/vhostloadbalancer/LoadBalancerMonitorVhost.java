@@ -53,7 +53,7 @@ public class LoadBalancerMonitorVhost extends LoadBalancerMonitorDefault {
 			WMSProperties vhostprops = vhost.getProperties();
 
 			String vhostRedirectAddress = vhostprops.getPropertyStr("loadBalancerVhostRedirectAddress", null);
-			if (vhostRedirectAddress == null) {
+			if (vhostRedirectAddress == null || vhostRedirectAddress == "") {
 				// If no redirect address is defined for this VHost, parse the VHosts.xml file for the first IP address that listens to port 1935 *or* 80
 				HostPortList hostPortList = vhost.getHostPortsList();
 				for (int i = 0; i < hostPortList.size(); i++) {
