@@ -7,10 +7,13 @@ import java.util.Map;
 
 //import com.wowza.wms.module.*;
 import com.wowza.wms.application.WMSProperties;
+import com.wowza.wms.logging.WMSLoggerFactory;
 //import com.wowza.wms.logging.*;
 import com.wowza.wms.plugin.loadbalancer.*;
 import com.wowza.wms.vhost.IVHost;
 import com.wowza.wms.vhost.VHostSingleton;
+import com.wowza.wms.vhost.HostPort;
+import com.wowza.wms.vhost.HostPortList;
 import com.wowza.wms.server.*;
 import org.json.simple.JSONObject;
 
@@ -24,12 +27,12 @@ import org.json.simple.JSONObject;
  * (http://www.wowza.com/forums/content.php?108)
  * 
  * @author Brynjar Eide <brynjar@availo.no>
- * @version 1.0b, 2012-07-02
+ * @version 1.0b, 2012-09-14
  *
  */
 public class LoadBalancerMonitorVhost extends LoadBalancerMonitorDefault {
 	public void appendToMessage(LoadBalancerSender loadBalancerSender, StringBuffer message) {
-		
+		boolean isDebugLog = WMSLoggerFactory.getLogger(LoadBalancerMonitorVhost.class).isDebugEnabled();
 		super.appendToMessage(loadBalancerSender, message);
 
 		// First find the global variables per server, in addition to the options handled by the original LoadBalancer module.
@@ -41,13 +44,29 @@ public class LoadBalancerMonitorVhost extends LoadBalancerMonitorDefault {
 
 		// Then read the vhost properties, which will override the server defaults, if defined.
 		List<?> vhostNames = VHostSingleton.getVHostNames();
-		Iterator<?> iter = vhostNames.iterator();
-		while (iter.hasNext()) {
-			String vhostName = (String) iter.next();
-			System.out.println("VHost:\t" + vhostName);
+		Iterator<?> vhostIterator = vhostNames.iterator();
+		while (vhostIterator.hasNext()) {
+			String vhostName = (String) vhostIterator.next();
+			// Uncomment if you need even more debug output. This will produce way too much output, even for regular debugging.
+			//WMSLoggerFactory.getLogger(LoadBalancerMonitorVhost.class).debug("LoadBalancerMonitorVHost.appendToMessage: VHost:\t" + vhostName);
 			IVHost vhost = (IVHost)VHostSingleton.getInstance(vhostName);
 			WMSProperties vhostprops = vhost.getProperties();
+
 			String vhostRedirectAddress = vhostprops.getPropertyStr("loadBalancerVhostRedirectAddress", null);
+			if (vhostRedirectAddress == null) {
+				// If no redirect address is defined for this VHost, parse the VHosts.xml file for the first IP address that listens to port 1935 *or* 80
+				HostPortList hostPortList = vhost.getHostPortsList();
+				for (int i = 0; i < hostPortList.size(); i++) {
+					HostPort hostPort = hostPortList.get(i);
+					if (hostPort.getPort() == 1935 || hostPort.getPort() == 80) {
+						vhostRedirectAddress = hostPort.getAddressStr();
+					}
+					/*if (isDebugLog) {
+						// This is just *too* much spam.
+						//WMSLoggerFactory.getLogger(LoadBalancerMonitorVhost.class).debug("LoadBalancerMonitorVHost.appendToMessage: hostport debug: " + hostPort.getAddressStr() + ":" + hostPort.getPort());
+					}*/
+				}
+			}
 			Map<String, String> map = new HashMap<String, String>();
 			map.put("redirectAddress", vhostRedirectAddress);
 			// Disabled, since the benefits of adding a vhost-specific weight doesn't seem to outweigh (no pun intended) the added complexity.
@@ -55,10 +74,7 @@ public class LoadBalancerMonitorVhost extends LoadBalancerMonitorDefault {
 			map.put("weight", vhostWeight);*/
 			vhostProperties.put(vhostName, map);
 		}
-		
-		System.out.println(vhostProperties);
 
-		
 		// Even though the default message is only pseudo-JSON, we'll use proper JSON encoded values for our custom properties.
 		JSONObject customProperties = new JSONObject();
 
@@ -67,7 +83,7 @@ public class LoadBalancerMonitorVhost extends LoadBalancerMonitorDefault {
 		 * Contains all the properties found in the respective VHost.xml files
 		 */
 		customProperties.put("vhosts", vhostProperties);
-		
+
 		/*
 		 *  Used to define how much a server can handle compared to the other servers.
 		 *  A 10Ggbps could for example have a weight of 7, compared to a weight of 1 on an 1Gbps server.
@@ -79,5 +95,7 @@ public class LoadBalancerMonitorVhost extends LoadBalancerMonitorDefault {
 		 * We'll use this to know where to redirect users, based on what vhost address they connect to on the load balancer.
 		 */
 		message.append("customProperties:" + customProperties + "\n");
+
+		WMSLoggerFactory.getLogger(LoadBalancerMonitorVhost.class).debug("LoadBalancerMonitorVHost.appendToMessage: Properties: " + customProperties);
 	}
 }
