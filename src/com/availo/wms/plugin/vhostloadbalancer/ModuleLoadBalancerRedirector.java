@@ -205,7 +205,7 @@ public class ModuleLoadBalancerRedirector extends ModuleBase {
 					//String scheme = redirectScheme == null ? uri.getScheme() : redirectScheme; // This is probably not a good idea to use anymore, since we're dealing with completely different clients now.
 					int port = redirectPort > 0 ? redirectPort : uri.getPort(); // This should be okay, though.
 					String host = redirect.getHost();
-					String path = redirectAppName != null ? redirectAppName : uri.getPath();
+					String path = uri.getPath();
 
 					getLogger().debug("ModuleLoadBalancerRedirector.onHTTPSessionCreate[" + getFullName(appInstance) + "]: creating new URI:" + uri.getScheme() + "," + uri.getUserInfo() + "," + host + "," + port + "," + path + "," + uri.getQuery() + "," + uri.getFragment());
 					URI newUri = new URI(uri.getScheme(), uri.getUserInfo(), host, port, path, uri.getQuery(), uri.getFragment());
@@ -276,7 +276,7 @@ public class ModuleLoadBalancerRedirector extends ModuleBase {
 					//String scheme = redirectScheme == null ? uri.getScheme() : redirectScheme; // This is probably not a good idea to use anymore, since we're dealing with completely different clients now.
 					int port = redirectPort > 0 ? redirectPort : uri.getPort(); // This should be okay, though.
 					String host = redirect.getHost();
-					String path = redirectAppName != null ? redirectAppName : uri.getPath();
+					String path = uri.getPath();
 
 					getLogger().debug("ModuleLoadBalancerRedirector.onRTPSessionCreate[" + getFullName(appInstance) + "]: creating new URI:" + uri.getScheme() + "," + uri.getUserInfo() + "," + host + "," + port + "," + path + "," + uri.getQuery() + "," + uri.getFragment());
 					URI newUri = new URI(uri.getScheme(), uri.getUserInfo(), host, port, path, uri.getQuery(), uri.getFragment());

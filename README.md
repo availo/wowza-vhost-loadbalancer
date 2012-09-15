@@ -153,6 +153,10 @@ to the following:
 <Class>com.availo.wms.plugin.vhostloadbalancer.ModuleLoadBalancerRedirector</Class>
 ```
 
-Please note that the redirectScheme property will *not* be used for any incoming HTTP
-connections. Currently 'http://' is hardcoded as the protocol for "cupertino" and
-"san jose"-connections.
+Please note that the "redirectScheme" property will *not* be used for any incoming
+HTTP or RTSP connections. Currently 'http://' is hardcoded as the protocol for
+"cupertino" and "san jose"-connections.
+
+The same goes for "redirectAppName". This property will only be used by RTMP
+connections, as both RTSP and HTTP requires the full URL when sending the
+redirect. (RTMP makes a separate play()-call that the other protocols don't.)
