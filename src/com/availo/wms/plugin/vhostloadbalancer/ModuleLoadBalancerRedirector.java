@@ -3,6 +3,7 @@ package com.availo.wms.plugin.vhostloadbalancer;
 import java.net.*;
 
 import com.wowza.wms.httpstreamer.model.IHTTPStreamerSession;
+import com.wowza.wms.rtp.model.RTPSession;
 import com.wowza.wms.module.*;
 import com.wowza.wms.request.*;
 import com.wowza.wms.server.*;
@@ -155,7 +156,7 @@ public class ModuleLoadBalancerRedirector extends ModuleBase {
 	}
 
 	/**
-	 * Add redirect functionality for iOS-streams (HLS / Cupertino) and Flash HTTP-streams (HDS / San Jose)
+	 * Redirect functionality for iOS-streams (HLS / Cupertino) and Flash HTTP-streams (HDS / San Jose)
 	 * Thanks to Oleg Tokar for providing a working example here: http://www.wowza.com/forums/showthread.php?17957-loadbalance-for-ios&p=92189#post92189
 	 * @param httpSession
 	 */
@@ -227,4 +228,75 @@ public class ModuleLoadBalancerRedirector extends ModuleBase {
 			}
 		}
     }
+
+	/**
+	 * Redirect functionality for RTSP-streams
+	 * (Awful copy/paste of the HTTP functionality)
+	 * @param rtpSession
+	 */
+	public void onRTPSessionCreate(RTPSession rtpSession) {
+		String vhostName = rtpSession.getVHost().getName();
+		IApplicationInstance appInstance = rtpSession.getAppInstance();
+
+		if (this.redirectOnConnect) {
+			boolean isDebugLog = getLogger().isDebugEnabled();
+			while (true) {
+				if (this.redirector == null) {
+					//rtpSession.rejectSession("ModuleLoadBalancerRedirector.onrtpSessionCreate[" + getFullName(appInstance) + "]: ILoadBalancerRedirector not found.");
+					rtpSession.rejectSession(); // TODO figure out a way to add an error message to the client, like rejectConnection(String errorStr) offers
+					if (isDebugLog)
+						getLogger().debug("ModuleLoadBalancerRedirector.onRTPSessionCreate[" + getFullName(appInstance) + "]: ILoadBalancerRedirector not found.");
+					break;
+				}
+
+				LoadBalancerRedirect redirect = this.redirector.getRedirect(vhostName);
+				if (redirect == null) {
+					//client.rejectConnection("ModuleLoadBalancerRedirector.onRTPSessionCreate[" + getFullName(appInstance) + "]: Redirect failed.");
+					rtpSession.rejectSession(); // TODO figure out a way to add an error message to the client, like rejectConnection(String errorStr) offers
+					if (isDebugLog)
+						getLogger().debug("ModuleLoadBalancerRedirector.onRTPSessionCreate[" + getFullName(appInstance) + "]: Redirect failed.");
+					break;
+				}
+
+				if (rtpSession.getUri() == null) {
+					//client.rejectConnection("ModuleLoadBalancerRedirector.onRTPSessionCreate[" + getFullName(appInstance) + "]: URI missing.");
+					rtpSession.rejectSession(); // TODO figure out a way to add an error message to the client, like rejectConnection(String errorStr) offers
+					if (isDebugLog)
+						getLogger().debug("ModuleLoadBalancerRedirector.onRTPSessionCreate[" + getFullName(appInstance) + "]: URI missing.");
+					break;
+				}
+
+				// There we go... RTPSession also includes protocol, hostname and port in getUri().
+				String uriStr = rtpSession.getUri();
+				getLogger().debug("ModuleLoadBalancerRedirector.onRTPSessionCreate[" + getFullName(appInstance) + "]: old URI:" + uriStr);
+
+				try {
+					URI uri = new URI(uriStr);
+
+					//String scheme = redirectScheme == null ? uri.getScheme() : redirectScheme; // This is probably not a good idea to use anymore, since we're dealing with completely different clients now.
+					int port = redirectPort > 0 ? redirectPort : uri.getPort(); // This should be okay, though.
+					String host = redirect.getHost();
+					String path = redirectAppName != null ? redirectAppName : uri.getPath();
+
+					getLogger().debug("ModuleLoadBalancerRedirector.onRTPSessionCreate[" + getFullName(appInstance) + "]: creating new URI:" + uri.getScheme() + "," + uri.getUserInfo() + "," + host + "," + port + "," + path + "," + uri.getQuery() + "," + uri.getFragment());
+					URI newUri = new URI(uri.getScheme(), uri.getUserInfo(), host, port, path, uri.getQuery(), uri.getFragment());
+
+					if (isDebugLog) {
+						getLogger().debug("ModuleLoadBalancerRedirector.onRTPSessionCreate[" + getFullName(appInstance) + "]: from:" + uriStr + " to:" + newUri.toString());
+					}
+
+					// Only add the "?stuff" parameters if the querystring has actual data
+					String queryString = (rtpSession.getQueryStr() != null && rtpSession.getQueryStr() != "") ? "?" + rtpSession.getQueryStr() : "";
+					rtpSession.redirectSession(newUri.toString() + queryString);
+
+				} catch (Exception e) {
+					//rtpSession.rejectSession("ModuleLoadBalancerRedirector.onRTPSessionCreate[" + getFullName(appInstance) + "]: Exception: " + e.toString());
+					rtpSession.rejectSession(); // TODO figure out a way to add an error message to the client, like rejectConnection(String errorStr) offers
+					if (isDebugLog)
+						getLogger().error("ModuleLoadBalancerRedirector.onRTPSessionCreate[" + getFullName(appInstance) + "]: Exception: " + e.toString());
+				}
+				break;
+			}
+		}
+	}
 }
