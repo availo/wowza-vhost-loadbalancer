@@ -1,5 +1,14 @@
 # WowzaMediaServer VHost-capable LoadBalancer
 
+## Description
+
+The "VHost Load Balancer" module extends the regular LoadBalancer-
+module for Wowza Media Server with the following functionality:
+
+ * VHost support (the old one redirects to one IP address per server.)
+ * LoadBalancing based on Bandwidth instead of total connections.
+ * "Weight"-option per server, to support a mix of inhomogeneous servers.
+
 ## Important notice
 
 This code is still only briefly tested. Please use this module with
@@ -7,7 +16,7 @@ caution, and be sure to install it in a lab environment before
 considering it for production use.
 
 Feel free to send any questions, suggestions or comments to me on
-github -- at -- segfault.no
+github -- at -- segfault.no.
 
 ## Prerequisites:
 
