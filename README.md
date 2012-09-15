@@ -6,8 +6,9 @@ The "VHost Load Balancer" module extends the regular LoadBalancer-
 module for Wowza Media Server with the following functionality:
 
  * VHost support (the old one redirects to one IP address per server.)
- * LoadBalancing based on Bandwidth instead of total connections.
+ * Load balancing based on bandwidth instead of total connections.
  * "Weight"-option per server, to support a mix of inhomogeneous servers.
+ * Redirecting HTTP- (HLS/Cupertino + HDS/San Jose) and RTSP-connections.
 
 ## Important notice
 
