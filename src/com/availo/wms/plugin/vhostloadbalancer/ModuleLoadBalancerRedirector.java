@@ -18,7 +18,7 @@ import com.wowza.wms.plugin.loadbalancer.*;
  * This module should be included in application configs (Application.xml)
  * 
  * @author Brynjar Eide <brynjar@availo.no>
- * @version 1.0b, 2012-09-14
+ * @version 1.0b, 2012-09-20
  *
  */
 public class ModuleLoadBalancerRedirector extends ModuleBase {
@@ -96,6 +96,12 @@ public class ModuleLoadBalancerRedirector extends ModuleBase {
 		sendResult(client, params, new AMFDataItem(ret));
 	}
 
+	/**
+	 * RTMP redirect
+	 * @param client
+	 * @param function
+	 * @param params
+	 */
 	public void onConnect(IClient client, RequestFunction function, AMFDataList params) {
 		if (this.redirectOnConnect) {
 			boolean isDebugLog = getLogger().isDebugEnabled();
@@ -156,82 +162,69 @@ public class ModuleLoadBalancerRedirector extends ModuleBase {
 	}
 
 	/**
-	 * Redirect functionality for iOS-streams (HLS / Cupertino) and Flash HTTP-streams (HDS / San Jose)
-	 * Thanks to Oleg Tokar for providing a working example here: http://www.wowza.com/forums/showthread.php?17957-loadbalance-for-ios&p=92189#post92189
+	 * Redirect functionality for iOS-streams (HLS / Cupertino) and Adobe HTTP streams (HDS / San Jose)
+	 * 
+	 * This prepares a header that will be read by the HTTPStreamers for HLS and HDS,
+	 * and then used to generate an absolute URL to the edge server
 	 * @param httpSession
 	 */
 	public void onHTTPSessionCreate(IHTTPStreamerSession httpSession) {
 		String vhostName = httpSession.getVHost().getName();
 		IApplicationInstance appInstance = httpSession.getAppInstance();
 
-		if (this.redirectOnConnect) {
-			boolean isDebugLog = getLogger().isDebugEnabled();
-			while (true) {
-				if (this.redirector == null) {
-					//httpSession.rejectSession("ModuleLoadBalancerRedirector.onHTTPSessionCreate[" + getFullName(appInstance) + "]: ILoadBalancerRedirector not found.");
-					httpSession.rejectSession(); // TODO figure out a way to add an error message to the client, like rejectConnection(String errorStr) offers
-					if (isDebugLog)
-						getLogger().debug("ModuleLoadBalancerRedirector.onHTTPSessionCreate[" + getFullName(appInstance) + "]: ILoadBalancerRedirector not found.");
-					break;
-				}
-
-				LoadBalancerRedirect redirect = this.redirector.getRedirect(vhostName);
-				if (redirect == null) {
-					//client.rejectConnection("ModuleLoadBalancerRedirector.onHTTPSessionCreate[" + getFullName(appInstance) + "]: Redirect failed.");
-					httpSession.rejectSession(); // TODO figure out a way to add an error message to the client, like rejectConnection(String errorStr) offers
-					if (isDebugLog)
-						getLogger().debug("ModuleLoadBalancerRedirector.onHTTPSessionCreate[" + getFullName(appInstance) + "]: Redirect failed.");
-					break;
-				}
-
-				if (httpSession.getUri() == null) {
-					//client.rejectConnection("ModuleLoadBalancerRedirector.onHTTPSessionCreate[" + getFullName(appInstance) + "]: URI missing.");
-					httpSession.rejectSession(); // TODO figure out a way to add an error message to the client, like rejectConnection(String errorStr) offers
-					if (isDebugLog)
-						getLogger().debug("ModuleLoadBalancerRedirector.onHTTPSessionCreate[" + getFullName(appInstance) + "]: URI missing.");
-					break;
-				}
-
-				// Unlike IClient.getUri(), httpSession.getUri() does *not* return an absolute URI, and is missing information about protocol, hostname and port.
-				String queryServer = httpSession.getServerIp();
-		        int queryPort = httpSession.getServerPort();
-		        // FIXME I don't like hardcoding "http://", in case anyone uses "https://" - find a way to get the protocol from IHTTPStreamerSession
-				String uriStr = "http://" + queryServer + ":" + queryPort + "/" + httpSession.getUri();
-				getLogger().debug("ModuleLoadBalancerRedirector.onHTTPSessionCreate[" + getFullName(appInstance) + "]: old URI:" + uriStr);
-
-				try {
-					URI uri = new URI(uriStr);
-
-					//String scheme = redirectScheme == null ? uri.getScheme() : redirectScheme; // This is probably not a good idea to use anymore, since we're dealing with completely different clients now.
-					int port = redirectPort > 0 ? redirectPort : uri.getPort(); // This should be okay, though.
-					String host = redirect.getHost();
-					String path = uri.getPath();
-
-					getLogger().debug("ModuleLoadBalancerRedirector.onHTTPSessionCreate[" + getFullName(appInstance) + "]: creating new URI:" + uri.getScheme() + "," + uri.getUserInfo() + "," + host + "," + port + "," + path + "," + uri.getQuery() + "," + uri.getFragment());
-					URI newUri = new URI(uri.getScheme(), uri.getUserInfo(), host, port, path, uri.getQuery(), uri.getFragment());
-
-					if (isDebugLog) {
-						getLogger().debug("ModuleLoadBalancerRedirector.onHTTPSessionCreate[" + getFullName(appInstance) + "]: from:" + uriStr + " to:" + newUri.toString());
-					}
-
-					// Only add the "?stuff" parameters if the querystring has actual data
-					String queryString = (httpSession.getQueryStr() != null && httpSession.getQueryStr() != "") ? "?" + httpSession.getQueryStr() : "";
-					httpSession.redirectSession(newUri.toString() + queryString);
-
-				} catch (Exception e) {
-					//httpSession.rejectSession("ModuleLoadBalancerRedirector.onHTTPSessionCreate[" + getFullName(appInstance) + "]: Exception: " + e.toString());
-					httpSession.rejectSession(); // TODO figure out a way to add an error message to the client, like rejectConnection(String errorStr) offers
-					if (isDebugLog)
-						getLogger().error("ModuleLoadBalancerRedirector.onHTTPSessionCreate[" + getFullName(appInstance) + "]: Exception: " + e.toString());
-				}
+		boolean isDebugLog = getLogger().isDebugEnabled();
+		while (true) {
+			if (this.redirector == null) {
+				//httpSession.rejectSession("ModuleLoadBalancerRedirector.onHTTPSessionCreate[" + getFullName(appInstance) + "]: ILoadBalancerRedirector not found.");
+				httpSession.rejectSession(); // TODO figure out a way to add an error message to the client, like rejectConnection(String errorStr) offers
+				if (isDebugLog)
+					getLogger().debug("ModuleLoadBalancerRedirector.onHTTPSessionCreate[" + getFullName(appInstance) + "]: ILoadBalancerRedirector not found.");
 				break;
 			}
+
+			LoadBalancerRedirect redirect = this.redirector.getRedirect(vhostName);
+			if (redirect == null) {
+				//client.rejectConnection("ModuleLoadBalancerRedirector.onHTTPSessionCreate[" + getFullName(appInstance) + "]: Redirect failed.");
+				httpSession.rejectSession(); // TODO figure out a way to add an error message to the client, like rejectConnection(String errorStr) offers
+				if (isDebugLog)
+					getLogger().debug("ModuleLoadBalancerRedirector.onHTTPSessionCreate[" + getFullName(appInstance) + "]: Redirect failed.");
+				break;
+			}
+
+			if (httpSession.getUri() == null) {
+				//client.rejectConnection("ModuleLoadBalancerRedirector.onHTTPSessionCreate[" + getFullName(appInstance) + "]: URI missing.");
+				httpSession.rejectSession(); // TODO figure out a way to add an error message to the client, like rejectConnection(String errorStr) offers
+				if (isDebugLog)
+					getLogger().debug("ModuleLoadBalancerRedirector.onHTTPSessionCreate[" + getFullName(appInstance) + "]: URI missing.");
+				break;
+			}
+
+	        try {
+				int port = redirectPort > 0 ? redirectPort : httpSession.getServerPort();
+				String host = redirect.getHost();
+				String loadbalancerTarget = host;
+
+				if (port != 0 && port != 80) {
+					// Only add the port if it's a valid port, and it's not the default HTTP port.
+					loadbalancerTarget += ":" + port;
+				}
+				if (isDebugLog) {
+					getLogger().debug("ModuleLoadBalancerRedirector.onHTTPSessionCreate[" + getFullName(appInstance) + "]: Adding HTTP Header 'X-LoadBalancer-Targer: " + loadbalancerTarget + "'");
+				}
+				httpSession.setUserHTTPHeader("X-LoadBalancer-Target", loadbalancerTarget);
+
+			} catch (Exception e) {
+				//httpSession.rejectSession("ModuleLoadBalancerRedirector.onHTTPSessionCreate[" + getFullName(appInstance) + "]: Exception: " + e.toString());
+				httpSession.rejectSession(); // TODO Add an error message to the client
+				if (isDebugLog)
+					getLogger().error("ModuleLoadBalancerRedirector.onHTTPSessionCreate[" + getFullName(appInstance) + "]: Exception: " + e.toString());
+			}
+			break;
 		}
     }
 
 	/**
 	 * Redirect functionality for RTSP-streams
-	 * (Awful copy/paste of the HTTP functionality)
 	 * @param rtpSession
 	 */
 	public void onRTPSessionCreate(RTPSession rtpSession) {
@@ -273,8 +266,7 @@ public class ModuleLoadBalancerRedirector extends ModuleBase {
 				try {
 					URI uri = new URI(uriStr);
 
-					//String scheme = redirectScheme == null ? uri.getScheme() : redirectScheme; // This is probably not a good idea to use anymore, since we're dealing with completely different clients now.
-					int port = redirectPort > 0 ? redirectPort : uri.getPort(); // This should be okay, though.
+					int port = redirectPort > 0 ? redirectPort : uri.getPort();
 					String host = redirect.getHost();
 					String path = uri.getPath();
 

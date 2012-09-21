@@ -79,6 +79,45 @@ If you only added the HTTPProvider to one VHost.xml file, you need to duplicate
 the config in all your other active vhosts, since this is how the loadbalancer
 can determine what VHost to redirect the client to.
 
+#### Step 4a
+If the "Get least loaded server using Netconnection redirect"-method will be used,
+or you want to redirect HDS (San Jose) or HLS (Cupertino) streams, change the
+ModuleLoadBalancerRedirector-module in all relevant Application.xml files
+to the following:
+```xml
+<Class>com.availo.wms.plugin.vhostloadbalancer.ModuleLoadBalancerRedirector</Class>
+```
+
+
+Please note that the "redirectScheme" property will *not* be used for any incoming
+HTTP or RTSP connections. Currently 'http://' is hardcoded as the protocol for
+"cupertino" and "san jose"-connections.
+
+The same goes for "redirectAppName". This property will only be used by RTMP
+connections, as both RTSP and HTTP requires the full URL when sending the
+redirect. (RTMP makes a separate play()-call that the other protocols don't.)
+
+#### Step 4b
+In addition to the ModuleLoadBalancerRedirector, you will need a module that
+adds absolute URLs for the edge-server to the Playlist.m3u8 and manifest.f4m
+files in order to make HTTP streaming work as intended.
+
+Without this change, flowplayer and OSMF will keep directing all requests
+to the loadbalancer.
+
+This is done by replacing the following two lines in HTTPStreamers.xml for *all*
+VHosts you wish to use the load balancer with:
+
+```xml
+<!--<BaseClass>com.wowza.wms.httpstreamer.cupertinostreaming.httpstreamer.HTTPStreamerAdapterCupertinoStreamer</BaseClass>-->
+<BaseClass>com.availo.wms.httpstreamer.HTTPStreamerAdapterCupertinoRedirector</BaseClass>
+```
+
+```xml
+<!--<BaseClass>com.wowza.wms.httpstreamer.sanjosestreaming.httpstreamer.HTTPStreamerAdapterSanJoseStreamer</BaseClass>-->
+<BaseClass>com.availo.wms.httpstreamer.HTTPStreamerAdapterSanJoseRedirector</BaseClass>
+```
+
 
 ### Configuring the LoadBalancerSenders
 
@@ -95,11 +134,15 @@ README.html) to the following value:
 <BaseClass>com.availo.wms.plugin.vhostloadbalancer.ServerListenerLoadBalancerSender</BaseClass>
 ```
 
+
 The "loadBalancerSenderMonitorClass"-property, also in Server.xml, needs to be
 updated as well. New value:
 ```xml
 <Value>com.availo.wms.plugin.vhostloadbalancer.LoadBalancerMonitorVhost</Value>
 ```
+
+
+At this point, the basic functionality of the load balancer should be working.
 
 #### Step 3 (optional)
 While still in Server.xml, you may also add a different weight for the current
@@ -116,6 +159,7 @@ To use a different weight, add the following property to the bottom of Server.xm
 	<Type>Integer</Type>
 </Property>
 ```
+
 
 In the example above, the weight of 5 would mean that a particular server can
 handle 5 times the traffic compared to a server with the default weight of 1.
@@ -148,6 +192,7 @@ Add a "loadBalancerVhostRedirectAddress" property to all active VHost.xml files:
 </Property>
 ```
 
+
 This IP address should be the same as you have defined in the first <HostPort>
 section for the respective VHost.
 
@@ -155,18 +200,3 @@ If this property is skipped, or left blank, the module will make an educated
 guess on what IP address to use for this particular VHost. It will always
 use the first IP address that listens to either port 80 or port 1935.
 
-#### Step 6
-If the "Get least loaded server using Netconnection redirect"-method will be used,
-change the ModuleLoadBalancerRedirector-module in all relevant Application.xml files
-to the following:
-```xml
-<Class>com.availo.wms.plugin.vhostloadbalancer.ModuleLoadBalancerRedirector</Class>
-```
-
-Please note that the "redirectScheme" property will *not* be used for any incoming
-HTTP or RTSP connections. Currently 'http://' is hardcoded as the protocol for
-"cupertino" and "san jose"-connections.
-
-The same goes for "redirectAppName". This property will only be used by RTMP
-connections, as both RTSP and HTTP requires the full URL when sending the
-redirect. (RTMP makes a separate play()-call that the other protocols don't.)
