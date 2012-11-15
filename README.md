@@ -19,7 +19,18 @@ considering it for production use.
 Feel free to send any questions, suggestions or comments to me on
 github -- at -- segfault.no.
 
-## Prerequisites:
+## Changelog
+
+### 2012-11-15
+
+ * Added support for SMIL files
+ * Updated the code to work with HTTP playlists (cupertino + san jose) in
+   Wowza Media Server 3.5.0, which was released on November 9th.
+ * Uploaded a precompiled .jar-file for 3.5.0, and renamed the old .jar-file.
+   No configuration changes are required, but the old file, named
+   'availo-vhostloadbalancer.jar', needs to be replaced with the new file.
+
+## Prerequisites
 
 ### Original LoadBalancer 2.0
 This module depends on the original LoadBalancer 2.0 in order to run:
@@ -40,8 +51,8 @@ http://www.wowza.com/media-server/developers#wowza-ide
 ## Installing and configuring the module
 
 #### Add the .jar-file to all servers (required on both the Listener and the Senders):
-Copy lib/availo-vhostloadbalancer.jar to the [install-dir]/lib/ folder of Wowza
-Media Server 2 or 3.
+Copy lib/availo-vhost-loadbalancer-3.1.2.jar or lib/availo-vhost-loadbalancer-3.5.0.jar
+to the [install-dir]/lib/ folder of your Wowza Media Server, depending on your version.
 
 ### Configuring the LoadBalancerListener
 
