@@ -1,8 +1,26 @@
+/**
+ * ConfigCache.java
+ * 
+ * 
+ *    Copyright 2012 Brynjar Eide
+ *
+ *  Licensed under the Apache License, Version 2.0 (the "License");
+ *  you may not use this file except in compliance with the License.
+ *  You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package com.availo.wms.plugin.vhostloadbalancer;
 
 import java.util.HashMap;
 import java.util.Map;
-
 import com.availo.wms.httpstreamer.HTTPStreamerAdapterCupertinoRedirector;
 import com.availo.wms.plugin.vhostloadbalancer.ConfigCache.VHost.Application;
 import com.wowza.wms.application.IApplicationInstance;
@@ -14,7 +32,7 @@ import com.wowza.wms.module.ModuleBase;
  * Class that is used by HTTPStreamerAdapter-redirectors, to avoid re-reading the config file for every request.
  * 
  * @author Brynjar Eide <brynjar@availo.no>
- * @version 1.0b, 2012-11-27 
+ * @version 1.1, 2012-12-05
  */
 public class ConfigCache extends ModuleBase {
 
@@ -550,8 +568,12 @@ public class ConfigCache extends ModuleBase {
 		getLogger().debug(String.format("ConfigCache.expireProperties[%s/%s]: Application has stopped. Expiring all properties and cleaning up the application.", appInstance.getVHost().getName(), appInstance.getApplication().getName()));
 		Application app = getApplication(appInstance);
 		VHost vhost = getVHost(appInstance);
-		app.removeProperties();
-		vhost.removeApplication(app);
+		if (app != null) {
+			app.removeProperties();
+		}
+		if (vhost != null) {
+			vhost.removeApplication(app);
+		}
 	}
 	
 	/**
