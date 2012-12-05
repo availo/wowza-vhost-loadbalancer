@@ -164,9 +164,9 @@ public class HTTPStreamerAdapterSanJoseRedirector extends HTTPStreamerAdapterSan
 			getLogger().debug(String.format("%s: redirectAppName '%s' differs from the current appName '%s'. Trying to rewrite.", logPrefix("serviceMsg", appInstance), redirectAppName, origName));
 			String searchAppName = "^" + appInstance.getApplication().getName();
 			loadbalancerTargetPath = loadbalancerTargetPath.replaceFirst(searchAppName, redirectAppName);
-			if (loadbalancerTargetPath != null) {
-				loadbalancerTargetPath = loadbalancerTargetPath.startsWith("/") ? loadbalancerTargetPath : "/" + loadbalancerTargetPath;
-			}
+		}
+		if (loadbalancerTargetPath != null) {
+			loadbalancerTargetPath = loadbalancerTargetPath.startsWith("/") ? loadbalancerTargetPath : "/" + loadbalancerTargetPath;
 		}
 
 		getLogger().debug(String.format("%s: New path:  '%s'", logPrefix("serviceMsg", appInstance), loadbalancerTargetPath));

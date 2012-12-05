@@ -366,9 +366,9 @@ public class ModuleLoadBalancerRedirector extends ModuleBase {
 							getLogger().debug(String.format("%s: redirectAppName '%s' differs from the current appName '%s'. Trying to rewrite.", logPrefix("serviceMsg", appInstance), redirectAppName, origName));
 							String searchAppName = "^/?" + appInstance.getApplication().getName();
 							path = path.replaceFirst(searchAppName, redirectAppName);
-							if (redirectAppName != null) {
-								redirectAppName = redirectAppName.startsWith("/") ? redirectAppName : "/" + redirectAppName;
-							}
+						}
+						if (path != null) {
+							path = path.startsWith("/") ? path : "/" + path;
 						}
 			
 						getLogger().debug(logPrefix("onRTPSessionCreate", appInstance) + ": creating new URI:" + uri.getScheme() + "," + uri.getUserInfo() + "," + host + "," + port + "," + path + "," + uri.getQuery() + "," + uri.getFragment());
