@@ -21,6 +21,15 @@ github -- at -- segfault.no.
 
 ## Changelog
 
+### 2012-12-05 - bugfixes, new license and new features
+ * All files that have been rewritten are now using Apache 2 License.
+   (The exceptions are the two ServerListener-classes)
+ * Added an optional "?redirect=true" parameter for RTMP/RTSP/HTTP requests.
+   Will allow clients to get redirected when redirectOnConnect = false.
+ * Complete rewrite of the HTTP redirect. Now using a ConfigCache to allow
+   redirecting based on the config properties in Application.xml
+ * redirectOnConnect, redirectAppName and redirectPort is now respected.
+
 ### 2012-11-15
 
  * Added support for SMIL files
@@ -100,13 +109,15 @@ to the following:
 ```
 
 
-Please note that the "redirectScheme" property will *not* be used for any incoming
-HTTP or RTSP connections. Currently 'http://' is hardcoded as the protocol for
-"cupertino" and "san jose"-connections.
+Please note that the "redirectScheme" property is deprecated in the VHost
+LoadBalancer, and will *not* be used at all for any incoming HTTP or RTSP
+connections. Currently 'http://' is hardcoded as the protocol for "cupertino"
+and "san jose"-connections.
 
-The same goes for "redirectAppName". This property will only be used by RTMP
-connections, as both RTSP and HTTP requires the full URL when sending the
-redirect. (RTMP makes a separate play()-call that the other protocols don't.)
+redirectAppName, redirectPort and redirectOnConnect is supported, however.
+
+If "redirectOnConnect" is disabled, clients that should be redirected can pass
+along a "?redirect=true" parameter. (Only in the netConnect call for RTMP.)
 
 #### Step 4b
 In addition to the ModuleLoadBalancerRedirector, you will need a module that
