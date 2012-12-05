@@ -21,15 +21,6 @@ github -- at -- segfault.no.
 
 ## Changelog
 
-### 2012-12-05 - bugfixes, new license and new features
- * All files that have been rewritten are now using Apache 2 License.
-   (The exceptions are the two ServerListener-classes)
- * Added an optional "?redirect=true" parameter for RTMP/RTSP/HTTP requests.
-   Will allow clients to get redirected when redirectOnConnect = false.
- * Complete rewrite of the HTTP redirect. Now using a ConfigCache to allow
-   redirecting based on the config properties in Application.xml
- * redirectOnConnect, redirectAppName and redirectPort is now respected.
-
 ### 2012-11-15
 
  * Added support for SMIL files
@@ -38,6 +29,19 @@ github -- at -- segfault.no.
  * Uploaded a precompiled .jar-file for 3.5.0, and renamed the old .jar-file.
    No configuration changes are required, but the old file, named
    'availo-vhostloadbalancer.jar', needs to be replaced with the new file.
+
+### 2012-12-05 - bugfixes, new license and new features
+
+ * All files that have been rewritten are now using Apache 2 License.
+   (The exceptions are the two ServerListener-classes)
+ * Added an optional "?redirect=true" parameter for RTMP/RTSP/HTTP requests.
+   Will allow clients to get redirected when redirectOnConnect = false.
+ * Complete rewrite of the HTTP redirect. Now using a ConfigCache to allow
+   redirecting based on the config properties in Application.xml
+ * redirectOnConnect, redirectAppName and redirectPort is now respected.
+ * Removed the old 3.1.2 .jar-file and renamed the 3.5.0-file. The current
+   availo-vhost-loadbalancer-3.jar" file should hopefully work on both/all
+   current updates of Wowza Media Server 3.x.
 
 ## Prerequisites
 
@@ -60,8 +64,7 @@ http://www.wowza.com/media-server/developers#wowza-ide
 ## Installing and configuring the module
 
 #### Add the .jar-file to all servers (required on both the Listener and the Senders):
-Copy lib/availo-vhost-loadbalancer-3.1.2.jar or lib/availo-vhost-loadbalancer-3.5.0.jar
-to the [install-dir]/lib/ folder of your Wowza Media Server, depending on your version.
+Copy lib/availo-vhost-loadbalancer-3.jar to the [install-dir]/lib/ folder of Wowza.
 
 ### Configuring the LoadBalancerListener
 
