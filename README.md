@@ -163,7 +163,7 @@ README.html) to the following value:
 The "loadBalancerSenderMonitorClass"-property, also in Server.xml, needs to be
 updated as well. New value:
 ```xml
-<Value>com.availo.wms.plugin.vhostloadbalancer.LoadBalancerMonitorVhost</Value>
+<Value>com.availo.wms.plugin.vhostloadbalancer.LoadBalancerMonitorVHost</Value>
 ```
 
 
