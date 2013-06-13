@@ -45,7 +45,7 @@ import org.json.simple.JSONObject;
  * (http://www.wowza.com/forums/content.php?108)
  * 
  * @author Brynjar Eide <brynjar@availo.no>
- * @version 1.1, 2012-12-05
+ * @version 2.0b, 2013-06-13
  *
  */
 public class LoadBalancerMonitorVHost extends LoadBalancerMonitorDefault {

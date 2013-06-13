@@ -34,7 +34,7 @@ import org.json.simple.JSONValue;
  * 
  * Uses bandwidth instead of connections when comparing servers.
  * @author Brynjar Eide <brynjar@availo.no>
- * @version 1.1, 2012-12-05
+ * @version 2.0b, 2013-06-13
  *
  */
 public class LoadBalancerRedirectorBandwidth implements ILoadBalancerRedirector {

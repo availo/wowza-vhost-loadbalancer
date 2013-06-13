@@ -9,6 +9,7 @@ module for Wowza Media Server with the following functionality:
  * Load balancing based on bandwidth instead of total connections.
  * "Weight"-option per server, to support a mix of inhomogeneous servers.
  * Redirecting HTTP- (HLS/Cupertino + HDS/San Jose) and RTSP-connections.
+ * Supports DVR-streams as of version 2.0b (June 2013).
 
 ## Important notice
 
@@ -16,10 +17,26 @@ This code is still only briefly tested. Please use this module with
 caution, and be sure to install it in a lab environment before
 considering it for production use.
 
+To make debugging / troubleshooting easier, change logging type from
+"INFO" to "DEBUG" in log4j.properties. (Don't use this setting in
+production - your log files will become *very* verbose.)
+
 Feel free to send any questions, suggestions or comments to me on
 github -- at -- segfault.no.
 
 ## Changelog
+
+### 2013-06-13 - Version 2.0 (beta) - Support for Wowza 3.6.x and DVR
+ * Support for Wowza 3.6.x, which changed the way sessionIds are handled
+   in the playlists for Cupertino streaming.
+   Redirecting from Wowza < 3.6.x to newer edge server seems to work, but
+   redirecting from Wowza >= 3.6.x to older edge servers will *not* work,
+   due to the new sessionId handling.
+ * Bugfix in the HTTP redirect modules: redirectAppName and redirectPort
+   would only be read once, and used for all other applications.
+   Thanks to Gelencsér István for reporting this issue.
+ * Support for DVR streams, which require that session Ids are valid for
+   the edge servers. Thanks to Thomas Swedin for reporting this problem.
 
 ### 2012-11-15
 
@@ -44,6 +61,14 @@ github -- at -- segfault.no.
    current updates of Wowza Media Server 3.x.
 
 ## Prerequisites
+
+### Supported wowza versions
+The module has been tested with Wowza versions 3.1.2, 3.5.x and 3.6.2,
+but only 3.5.x and 3.6.2 are currently actively tested by me.
+
+Wowza 2.x is currently not supported, and will require modifications
+to work. There are no plans to support Wowza 2.x, due to lack of a valid
+license for this platform.
 
 ### Original LoadBalancer 2.0
 This module depends on the original LoadBalancer 2.0 in order to run:

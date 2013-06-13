@@ -28,8 +28,8 @@ import java.util.regex.Pattern;
 import org.apache.mina.common.ByteBuffer;
 
 import com.availo.wms.plugin.vhostloadbalancer.ConfigCache;
-import com.availo.wms.plugin.vhostloadbalancer.LoadBalancerRedirectorBandwidth;
-import com.availo.wms.plugin.vhostloadbalancer.ServerListenerLoadBalancerListener;
+//import com.availo.wms.plugin.vhostloadbalancer.LoadBalancerRedirectorBandwidth;
+//import com.availo.wms.plugin.vhostloadbalancer.ServerListenerLoadBalancerListener;
 import com.availo.wms.plugin.vhostloadbalancer.ConfigCache.MissingPropertyException;
 import com.wowza.util.FasterByteArrayOutputStream;
 import com.wowza.wms.application.IApplicationInstance;
@@ -37,9 +37,9 @@ import com.wowza.wms.httpstreamer.cupertinostreaming.httpstreamer.HTTPStreamerAd
 import com.wowza.wms.httpstreamer.model.IHTTPStreamerSession;
 import com.wowza.wms.logging.WMSLogger;
 import com.wowza.wms.logging.WMSLoggerFactory;
-import com.wowza.wms.plugin.loadbalancer.LoadBalancerListener;
-import com.wowza.wms.plugin.loadbalancer.LoadBalancerRedirect;
-import com.wowza.wms.server.Server;
+//import com.wowza.wms.plugin.loadbalancer.LoadBalancerListener;
+//import com.wowza.wms.plugin.loadbalancer.LoadBalancerRedirect;
+//import com.wowza.wms.server.Server;
 import com.wowza.wms.vhost.IVHost;
 
 /**
@@ -51,7 +51,7 @@ import com.wowza.wms.vhost.IVHost;
  * <BaseClass>com.availo.wms.httpstreamer.HTTPStreamerAdapterCupertinoRedirector</BaseClass>
  * 
  * @author Brynjar Eide <brynjar@availo.no>
- * @version 1.1, 2012-12-05
+ * @version 2.0b, 2013-06-13
  *
  */
 public class HTTPStreamerAdapterCupertinoRedirector extends HTTPStreamerAdapterCupertinoStreamer {
@@ -59,12 +59,12 @@ public class HTTPStreamerAdapterCupertinoRedirector extends HTTPStreamerAdapterC
 	/**
 	 * LoadBalancerListener is where we'll get our LoadBalancerRedirectorBandwidth from
 	 */
-	private LoadBalancerListener listener = null;
+	//private LoadBalancerListener listener = null;
 
 	/**
 	 * LoadBalancerRedirectorBandwidth knows the IP address (or hostname) of the server that is deemed to be most suitable for the next connection
 	 */
-	private LoadBalancerRedirectorBandwidth redirector = null;
+	//private LoadBalancerRedirectorBandwidth redirector = null;
 
 	/**
 	 * ConfigCache is used to keep the configuration properties from Application.xml in memory,
@@ -72,16 +72,6 @@ public class HTTPStreamerAdapterCupertinoRedirector extends HTTPStreamerAdapterC
 	 */
 	private static ConfigCache config;
 	
-	/**
-	 * Optional property that translates the application name used on the LoadBalancerListener and redirect to a new name used on an edge server
-	 */
-	private String redirectAppName;
-
-	/**
-	 * Optional property that overrides the incoming port and redirect to a permanent port for all protocols 
-	 */
-	private int redirectPort;
-
 	/**
 	 * Keep track of whether all properties have been loaded for this instance
 	 */
@@ -119,15 +109,17 @@ public class HTTPStreamerAdapterCupertinoRedirector extends HTTPStreamerAdapterC
 			));
 			return;
 		}
+		
 		// Seems like we found everything we need to start manipulating the playlist with absolute URLs
 		appInstance = httpSession.getAppInstance();
+		
 		//getLogger().debug(String.format("%s: query string: %s", logPrefix("serviceMsg", appInstance), httpSession.getQueryStr()));
 
 		// Load the ConfigCache and all relevant properties
 		if (!initialized) {
 			init(appInstance);
 		}
-		getLogger().debug(String.format("%s: Received a playlist/medialist request to '%s'", logPrefix("serviceMsg", appInstance), req.getPath()));
+		getLogger().debug(String.format("%s: Received a playlist/medialist request to '%s'", logPrefix("serviceMsg", appInstance), req.getPath()), httpSession.getStream());
 
 		// This header is set in ModuleLoadBalancerRedirector.onHTTPSessionCreate(). Ignore any request without the header.
 		if (!resp.getHeaders().containsKey("X-LoadBalancer-Target")) {
@@ -138,9 +130,26 @@ public class HTTPStreamerAdapterCupertinoRedirector extends HTTPStreamerAdapterC
 		/*if (resp.getBodyList().isEmpty()) {
 			return;
 		}*/
-		LoadBalancerRedirect redirect = redirector.getRedirect(appInstance.getVHost().getName());
+		//LoadBalancerRedirect redirect = redirector.getRedirect(appInstance.getVHost().getName());
 		String loadbalancerTargetProtocol = "http://";
-		String loadbalancerTarget = redirect.getHost();
+		//String loadbalancerTarget = redirect.getHost();
+		String loadbalancerTarget = resp.getHeaders().get("X-LoadBalancer-Target");
+		
+		String redirectAppName = null;
+		int redirectPort = 0;
+		
+		try {
+			redirectAppName = config.getRedirectAppName(appInstance);
+		} catch (MissingPropertyException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		try {
+			redirectPort = config.getRedirectPort(appInstance);
+		} catch (MissingPropertyException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
 
 		// Only add redirect to a specific port if we're using a non-standard port. (Ignore -1, which is the default value.)
 		if (redirectPort > 0 && redirectPort != 80 && redirectPort != 443) {
@@ -151,13 +160,14 @@ public class HTTPStreamerAdapterCupertinoRedirector extends HTTPStreamerAdapterC
 		}
 
 		// Wowza accepts *.m3u and *.m3u8. Get the path from the requested URL by removing /<whatever>.m3u8, followed by optional HTTP GET arguments. (?wowzasessionid=xyz)
-		getLogger().debug(String.format("%s: Attempting to remove playlist extension from '%s'", logPrefix("serviceMsg", appInstance), req.getPath()));
+		getLogger().debug(String.format("%s: Attempting to remove playlist extension from '%s'", logPrefix("serviceMsg", appInstance), req.getPath()), httpSession.getStream());
 		String loadbalancerTargetPath = req.getPath().replaceFirst("(?i)/[^\\/]*\\.m3u8?(\\?[^\\/]*)?$", "");
 
 		// Check if we're redirecting to a different application, and rewrite if this is the case
 		if (redirectAppName != null && redirectAppName != appInstance.getApplication().getName()) {
 			String origName = appInstance.getApplication().getName();
-			getLogger().debug(String.format("%s: redirectAppName '%s' differs from the current appName '%s'. Trying to rewrite.", logPrefix("serviceMsg", appInstance), redirectAppName, origName));
+			getLogger().debug(String.format("%s: redirectAppName '%s' differs from the current appName '%s'. Trying to rewrite.",
+					logPrefix("serviceMsg", appInstance), redirectAppName, origName), httpSession.getStream());
 			String searchAppName = "^" + appInstance.getApplication().getName();
 			loadbalancerTargetPath = loadbalancerTargetPath.replaceFirst(searchAppName, redirectAppName);
 		}
@@ -165,10 +175,10 @@ public class HTTPStreamerAdapterCupertinoRedirector extends HTTPStreamerAdapterC
 			loadbalancerTargetPath = loadbalancerTargetPath.startsWith("/") ? loadbalancerTargetPath : "/" + loadbalancerTargetPath;
 		}
 
-		getLogger().debug(String.format("%s: New path:  '%s'", logPrefix("serviceMsg", appInstance), loadbalancerTargetPath));
+		getLogger().debug(String.format("%s: New path:  '%s'", logPrefix("serviceMsg", appInstance), loadbalancerTargetPath), httpSession.getStream());
 		
 		String baseUrl = loadbalancerTargetProtocol + loadbalancerTarget + loadbalancerTargetPath;
-		rewriteHTML(appInstance, resp, baseUrl);
+		rewriteHTML(appInstance, resp, baseUrl, httpSession);
 	}
 	
 	/**
@@ -178,16 +188,26 @@ public class HTTPStreamerAdapterCupertinoRedirector extends HTTPStreamerAdapterC
 	 * @param baseUrl The absolute URL that will be used as a prefix to every relevant line in the playlist
 	 * @return
 	 */
-	private boolean rewriteHTML(IApplicationInstance appInstance, com.wowza.wms.server.RtmpResponseMessage resp, String baseUrl) {
+	private boolean rewriteHTML(IApplicationInstance appInstance, com.wowza.wms.server.RtmpResponseMessage resp, String baseUrl, IHTTPStreamerSession httpSession) {
 		boolean rewritten = false;
+		String origSessionId = httpSession.getSessionId();
+		String edgeSessionId = origSessionId;
+		if (resp.getHeaders().containsKey("X-LoadBalancer-SessionId")) {
+			edgeSessionId = resp.getHeaders().get("X-LoadBalancer-SessionId");
+		}
+		
 		try {
 			StringBuffer absoluteData = new StringBuffer();
 
-			// Rewrite chunklist URL from relative to absolute chunklist.m3u8?wowzasessionid=1482042183
-			Pattern chunklist = Pattern.compile("^chunklist((-[^\\.]+)?\\.m3u8(.*))");
-
-			// Rewrite media URLs from relative to absolute: media-b3500000_145.ts?wowzasessionid=1482042183 - (this shouldn't happen if the chunklist redirects as intended.)
-			Pattern medialist = Pattern.compile("^media((-[^\\.]+)?\\.ts(.*))");
+			// The old Wowza < 3.6.x way - Rewrite chunklist URL from relative to absolute chunklist.m3u8?wowzasessionid=1482042183
+			// The new >= 3.6.x way - Rewrite chunklist URL from relative to absolute chunklist_w353783812_b448304.m3u8
+			Pattern chunklist = Pattern.compile("^chunklist(([_-][^\\.]+)?\\.m3u8(.*))");
+			
+			// The old Wowza < 3.6.x way - Rewrite media URLs from relative to absolute: media-b3500000_145.ts?wowzasessionid=1482042183 - (this shouldn't happen if the chunklist redirects as intended.)
+			// The new >= 3.6.x way - Rewrite media URLs from relative to absolute: media_w353783812_b448304_191.ts - (this shouldn't happen if the chunklist redirects as intended.)
+			Pattern medialist = Pattern.compile("^media(([_-][^\\.]+)?\\.ts(.*))");
+			
+			
 			List<ByteBuffer> bufferlist = resp.getBodyList();
 			Charset charset = Charset.forName("UTF-8");
 			CharsetDecoder decoder = charset.newDecoder();
@@ -207,6 +227,19 @@ public class HTTPStreamerAdapterCupertinoRedirector extends HTTPStreamerAdapterC
 					line = medialist.matcher(line).replaceAll(baseUrl + "/media$1");
 					rewritten = true;
 				}
+				if ((edgeSessionId != origSessionId && edgeSessionId.matches("\\d+"))) {
+					String origLine = line;
+					// Old style first
+					line = line.replaceAll("wowzasessionid=[0-9]+", "wowzasessionid=" + edgeSessionId);
+					// New style
+					line = line.replaceAll("(chunklist_|media_)w[0-9]+", "$1" + edgeSessionId);
+					if (origLine != line) {
+						getLogger().debug(String.format("%s: Original session id (%s) rewritten to match session on edge server (%s)",
+								logPrefix("rewriteHTML", appInstance), origSessionId, edgeSessionId), httpSession.getStream());
+						/*getLogger().debug(String.format("%s: (Rewritten line: %s)",
+								logPrefix("rewriteHTML", appInstance), line), httpSession.getStream());*/
+					}
+				}
 				absoluteData.append(line + "\n");
 			}
 
@@ -218,14 +251,16 @@ public class HTTPStreamerAdapterCupertinoRedirector extends HTTPStreamerAdapterC
 				// Print the newly replaced data to it
 				printStream.print(absoluteData.toString());
 				printStream.close();
-				getLogger().info(String.format("%s: Playlist.m3u8 rewritten with absolute URLs (%s)", logPrefix("rewriteHTML", appInstance), baseUrl));
+				getLogger().info(String.format("%s: Playlist.m3u8 rewritten with absolute URLs (%s) - sessionId orig: %s -> edge: %s",
+						logPrefix("rewriteHTML", appInstance), baseUrl, origSessionId, edgeSessionId), httpSession.getStream());
 			}
 			else {
-				getLogger().debug(String.format("%s: Playlist.m3u8 could not be rewritten with absolute URLs", logPrefix("rewriteHTML", appInstance)));
+				getLogger().debug(String.format("%s: Playlist.m3u8 could not be rewritten with absolute URLs",
+						logPrefix("rewriteHTML", appInstance)), httpSession.getStream());
 			}
 
 		} catch (Exception e){
-			getLogger().error(String.format("%s: %s", logPrefix("rewriteHTML", appInstance), e.getMessage()));
+			getLogger().error(String.format("%s: %s", logPrefix("rewriteHTML", appInstance), e.getMessage()), httpSession.getStream());
 			e.printStackTrace();
 		}
 		return rewritten;
@@ -238,10 +273,11 @@ public class HTTPStreamerAdapterCupertinoRedirector extends HTTPStreamerAdapterC
 	private void init(IApplicationInstance appInstance) {
 		getLogger().debug("Started serviceMsg");
 		if (config == null) {
-			getLogger().info(String.format("%s: Loading ConfigCache and LoadBalancerRedirectorBandwidth.", logPrefix("init", appInstance)));
+			//getLogger().info(String.format("%s: Loading ConfigCache and LoadBalancerRedirectorBandwidth.", logPrefix("init", appInstance)));
+			getLogger().info(String.format("%s: Loading ConfigCache.", logPrefix("init", appInstance)));
 			config = ConfigCache.getInstance();
 		}
-		if (listener == null || redirector == null) {
+		/*if (listener == null || redirector == null) {
 			while (true) {
 				listener = (LoadBalancerListener) Server.getInstance().getProperties().get(ServerListenerLoadBalancerListener.PROP_LOADBALANCERLISTENER);
 				if (listener == null) {
@@ -257,18 +293,20 @@ public class HTTPStreamerAdapterCupertinoRedirector extends HTTPStreamerAdapterC
 				}
 				break;
 			}
-		}
-		if (config.loadProperties(appInstance)) {
+		}*/
+		config.loadProperties(appInstance);
+		/*if (config.loadProperties(appInstance)) {
 			try {
 				redirectAppName = config.getRedirectAppName(appInstance);
 				//redirectScheme = config.getRedirectScheme(appInstance); // Not in use with HTTP streaming
 				redirectPort = config.getRedirectPort(appInstance);
+				getLogger().info(String.format("%s: Set redirectAppName to '%s' and redirectPort to '%s'.", logPrefix("init", appInstance), redirectAppName, redirectPort));
 				//redirectOnConnect = config.getRedirectOnConnect(appInstance); // redirectOnConnect is handled by *not* adding X-LoadBalancer-Target in ModuleLoadBalancerRedirect 
 			} catch (MissingPropertyException e) {
 				// TODO Auto-generated catch block
 				e.printStackTrace();
 			}
-		}
+		}*/
 		getLogger().debug(String.format("%s: Finished initializing.", logPrefix("init", appInstance)));
 		initialized = true;
 	}

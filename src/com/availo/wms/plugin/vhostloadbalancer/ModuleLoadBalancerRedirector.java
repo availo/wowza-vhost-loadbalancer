@@ -19,18 +19,25 @@
 
 package com.availo.wms.plugin.vhostloadbalancer;
 
-import java.net.*;
 import com.availo.wms.plugin.vhostloadbalancer.ConfigCache.MissingPropertyException;
 import com.wowza.wms.httpstreamer.model.IHTTPStreamerSession;
 import com.wowza.wms.rtp.model.RTPSession;
 import com.wowza.wms.module.*;
 import com.wowza.wms.request.*;
 import com.wowza.wms.server.*;
-import com.wowza.wms.stream.IMediaStream;
+//import com.wowza.wms.stream.IMediaStream;
 import com.wowza.wms.amf.*;
 import com.wowza.wms.application.*;
 import com.wowza.wms.client.*;
 import com.wowza.wms.plugin.loadbalancer.*;
+
+import java.io.BufferedReader;
+import java.io.IOException;
+//import java.io.InputStream;
+import java.io.InputStreamReader;
+//import java.io.StringWriter;
+import java.net.*;
+import java.util.regex.Pattern;
 
 /**
  * Wowza application redirector class with support for HTTP and RTMP redirecting per VHost
@@ -38,7 +45,7 @@ import com.wowza.wms.plugin.loadbalancer.*;
  * This module should be included in application configs (Application.xml)
  * 
  * @author Brynjar Eide <brynjar@availo.no>
- * @version 1.1, 2012-12-05
+ * @version 2.0b, 2013-06-13
  *
  */
 public class ModuleLoadBalancerRedirector extends ModuleBase {
@@ -78,6 +85,11 @@ public class ModuleLoadBalancerRedirector extends ModuleBase {
 	 * Semi-optional property that decides whether a connection should be automatically redirected, or if it needs to ask for a redirect. (RTMP-only) 
 	 */
 	private boolean redirectOnConnect;
+	
+	/**
+	 * Optional property that specifiees whether fetch a valid sessionId from the edge server, or use the sessionId from the loadbalancer 
+	 */
+	private boolean rewriteSessionId;
 
 	/**
 	 * @deprecated Should not be used, unless it is required for RTMP->RTMPT. It is only considered for RTMP connections, and is ignored for RTSP/HTTP requests.
@@ -110,6 +122,7 @@ public class ModuleLoadBalancerRedirector extends ModuleBase {
 				redirectScheme = config.getRedirectScheme(appInstance); // This is required if we want to support legacy configs.
 				redirectPort = config.getRedirectPort(appInstance);
 				redirectOnConnect = config.getRedirectOnConnect(appInstance);
+				rewriteSessionId = config.getRewriteSessionId(appInstance);
 			} catch (MissingPropertyException e) {
 				e.printStackTrace();
 			}
@@ -117,7 +130,7 @@ public class ModuleLoadBalancerRedirector extends ModuleBase {
 	}
 
 	public void onAppStop(IApplicationInstance appInstance) {
-		getLogger().info(logPrefix("onAppStart", appInstance) + ": Stopping application and expiring all properties.");
+		getLogger().info(logPrefix("onAppStop", appInstance) + ": Stopping application and expiring all properties.");
 		config.expireProperties(appInstance);
 	}
 	
@@ -138,7 +151,7 @@ public class ModuleLoadBalancerRedirector extends ModuleBase {
 		}
 		redirector = (LoadBalancerRedirectorBandwidth) listener.getRedirector();
 		if (redirector == null) {
-			getLogger().warn("ModuleLoadBalancerRedirector.init: ILoadBalancerRedirector not found. All connections to this application will be refused.");
+			getLogger().warn("ModuleLoadBalancerRedirector.init: LoadBalancerRedirectorBandwidth not found. All connections to this application will be refused.");
 			return false;
 		}
 		initialized = true;
@@ -209,14 +222,15 @@ public class ModuleLoadBalancerRedirector extends ModuleBase {
 			String vhostName = client.getAppInstance().getVHost().getName();
 			getLogger().debug(logPrefix("onRTMPRequest", client.getAppInstance()) + ": Trying to redirect client.");
 			if (redirector == null) {
-				client.rejectConnection(logPrefix("onRTMPRequest", appInstance) + ": ILoadBalancerRedirector not found.");
-				getLogger().warn(logPrefix("onRTMPRequest", appInstance) + ": ILoadBalancerRedirector not found.");
+				client.rejectConnection(logPrefix("onRTMPRequest", appInstance) + ": LoadBalancerRedirectorBandwidth not found.");
+				getLogger().warn(logPrefix("onRTMPRequest", appInstance) + ": LoadBalancerRedirectorBandwidth not found.");
 			}
 
 			LoadBalancerRedirect redirect = redirector.getRedirect(vhostName);
 			if (redirect == null) {
 				client.rejectConnection(logPrefix("onRTMPRequest", appInstance) + ": Redirect failed.");
-				getLogger().warn(logPrefix("onRTMPRequest", appInstance) + ": Redirect failed.");
+				getLogger().warn(logPrefix("onRTMPRequest", appInstance) +
+						": LoadBalancerRedirect server not found - no active edge servers available for vhost '" + appInstance.getVHost().getName() + "'?");
 			}
 
 			String uriStr = client.getUri();
@@ -295,20 +309,67 @@ public class ModuleLoadBalancerRedirector extends ModuleBase {
 				getLogger().debug(logPrefix("onHTTPSessionCreate", httpSession.getAppInstance()) + ": redirectOnConnect is disabled, but 'redirect=true' is specified in the HTTP request.");
 			}
 		}
+		
 		if (initialized || init()) {
 			if (redirectOnConnect || redirectRequest) {
 				IApplicationInstance appInstance = httpSession.getAppInstance();
 				LoadBalancerRedirect redirect = null;
 				if (redirector.getRedirect(appInstance.getVHost().getName()) == null) {
-					getLogger().warn(logPrefix("onHTTPSessionCreate", appInstance) + ": ILoadBalancerRedirector not found.");
+					getLogger().warn(logPrefix("onHTTPSessionCreate", appInstance) +
+							": LoadBalancerRedirect server not found - no active edge servers available for vhost '" + appInstance.getVHost().getName() + "'?");
 				}
 				else {
 					redirect = redirector.getRedirect(appInstance.getVHost().getName());
 			        try {
-						String host = redirect.getHost();
-						String loadbalancerTarget = host;
+			    		String loadbalancerTargetProtocol = "http://";
+			    		String loadbalancerTarget = redirect.getHost();
+			    		String uriStr = loadbalancerTargetProtocol + httpSession.getServerIp() + ":" + httpSession.getServerPort() + "/" + httpSession.getUri();
+			    		String queryString = (httpSession.getQueryStr() != null && httpSession.getQueryStr() != "") ? "?" + httpSession.getQueryStr() : "";
+
+			    		// Always specify the X-LoadBalancer-Target, so the HTTPStreamers can be sure they are supposed to redirect
+			    		httpSession.setUserHTTPHeader("X-LoadBalancer-Target", loadbalancerTarget);
+			    		
+			    		// Only add redirect to a specific port if we're using a non-standard port. (Ignore -1, which is the default value.)
+			    		if (redirectPort > 0 && redirectPort != 80 && redirectPort != 443) {
+			    			loadbalancerTarget += ":" + redirectPort;
+			    		}
+			    		if (redirectPort == 443) {
+			    			loadbalancerTargetProtocol = "https://"; // FIXME This is an ugly way of figuring out whether to use https or not
+			    		}
+			    		
+			    		URI uri = new URI(uriStr);
+			    		String loadbalancerTargetPath = uri.getPath();
+
+			    		// Check if we're redirecting to a different application, and rewrite if this is the case
+			    		if (redirectAppName != null && redirectAppName != appInstance.getApplication().getName()) {
+			    			String origName = appInstance.getApplication().getName();
+			    			getLogger().debug(String.format("%s: redirectAppName '%s' differs from the current appName '%s' in target path '%s'. Trying to rewrite.", logPrefix("serviceMsg", appInstance), redirectAppName, origName, loadbalancerTargetPath));
+			    			String searchAppName = "^/?" + appInstance.getApplication().getName();
+			    			loadbalancerTargetPath = loadbalancerTargetPath.replaceFirst(searchAppName, redirectAppName);
+			    		}
+			    		if (loadbalancerTargetPath != null) {
+			    			loadbalancerTargetPath = loadbalancerTargetPath.startsWith("/") ? loadbalancerTargetPath : "/" + loadbalancerTargetPath;
+			    		}
+
+			    		getLogger().debug(String.format("%s: New path:  '%s'", logPrefix("serviceMsg", appInstance), loadbalancerTargetPath));
+			    		
+			    		String baseUrl = loadbalancerTargetProtocol + loadbalancerTarget + loadbalancerTargetPath;			        	
 						getLogger().debug(logPrefix("onHTTPSessionCreate", appInstance) + ": Adding HTTP Header 'X-LoadBalancer-Targer: " + loadbalancerTarget + "'");
-						httpSession.setUserHTTPHeader("X-LoadBalancer-Target", loadbalancerTarget);
+						
+						httpSession.setUserHTTPHeader("X-LoadBalancer-Orig", uri.toString() + queryString);
+						//httpSession.setUserHTTPHeader("X-LoadBalancer-Dest", baseUrl + queryString);
+						//if (queryString.toLowerCase().contains("?dvr") || queryString.toLowerCase().contains("&dvr")) {
+						if (rewriteSessionId) {
+							int edgeSessionId = getEdgeSessionId(appInstance, baseUrl, queryString);
+							if (edgeSessionId > 0) {
+								getLogger().debug(logPrefix("onHTTPSessionCreate", appInstance) + ": Created and found an edge session id. Adding HTTP Header 'X-LoadBalancer-SessionId: " + edgeSessionId + "'");
+								httpSession.setUserHTTPHeader("X-LoadBalancer-SessionId", Integer.toString(edgeSessionId));
+							}
+						}
+						//}
+						
+						//URI newUri = new URI(uri.toString());
+						//httpSession.redirectSession(baseUrl + queryString);
 						return;
 			
 					} catch (Exception e) {
@@ -346,7 +407,8 @@ public class ModuleLoadBalancerRedirector extends ModuleBase {
 				IApplicationInstance appInstance = rtpSession.getAppInstance();
 				LoadBalancerRedirect redirect = null;
 				if (redirector.getRedirect(appInstance.getVHost().getName()) == null) {
-					getLogger().warn(logPrefix("onRTPSessionCreate", appInstance) + ": ILoadBalancerRedirector not found.");
+					getLogger().warn(logPrefix("onRTPSessionCreate", appInstance) +
+							": LoadBalancerRedirect server not found - no active edge servers available for vhost '" + appInstance.getVHost().getName() + "'?");
 				}
 				else {
 					redirect = redirector.getRedirect(appInstance.getVHost().getName());
@@ -392,6 +454,67 @@ public class ModuleLoadBalancerRedirector extends ModuleBase {
 			getLogger().debug(logPrefix("onRTPSessionCreate", rtpSession.getAppInstance()) + ": Ignoring request.");
 		}
 		getLogger().warn(logPrefix("onRTPSessionCreate", rtpSession.getAppInstance()) + ": Could not initialize the LoadBalancer module.");
-			        
+	}
+	
+	/**
+	 * Connect to the edge server, create a session there and grab the session Id
+	 * 
+	 * This is required if ?DVR is enabled, but doesn't seem to be necesssary otherwise.
+	 * (Logging might be slightly odd up on the edges without it, though.)
+	 * 
+	 * @param appInstance
+	 * @param baseUrl
+	 * @param queryString
+	 * @return Returns the newly created edge sessionId
+	 */
+	private Integer getEdgeSessionId(IApplicationInstance appInstance, String baseUrl, String queryString) {
+		Pattern mediaPattern = Pattern.compile(".*<media [^>]+ url=\"[^>]+>.*");
+		Pattern chunklistOld = Pattern.compile("^chunklist((-[^\\.]+)?\\.m3u8(.*))");
+		Pattern chunklistNew = Pattern.compile("^chunklist((_w[^\\.]+)?\\.m3u8(.*))");
+		getLogger().debug(logPrefix("getEdgeSessionId", appInstance) + ": Trying to generate and fetch sessionId from '" + baseUrl + queryString + "'");
+		try {
+			URL url = new URL(baseUrl + queryString);
+			InputStreamReader inputStreamReader = new InputStreamReader(url.openStream());
+			BufferedReader in = new BufferedReader(inputStreamReader);
+			String line;
+			while ((line = in.readLine()) != null) {
+			    //System.out.println(inputLine);
+				//getLogger().error(logPrefix("onHTTPSessionCreate", appInstance) + ": debug - " + line);
+				try {
+					if (mediaPattern.matcher(line).matches()) {
+						getLogger().debug(logPrefix("getEdgeSessionId", appInstance) + ": Found media. Parsing line '" + line + "'");
+						Integer sessionId = Integer.parseInt(line.replaceAll(".*<media[^>]+ url=\"[^>]+_w([0-9]+)(_[^>]+)?\\.abst\\/\">.*", "$1"));
+						getLogger().info(logPrefix("getEdgeSessionId", appInstance) + ": Found sessionId '" + sessionId + "' on line '" + line + "'");
+						return sessionId;
+					}
+					if (chunklistOld.matcher(line).matches()) {
+						getLogger().debug(logPrefix("getEdgeSessionId", appInstance) + ": Found Wowza < 3.6.x style chunklist. Parsing line '" + line + "'");
+						Integer sessionId = Integer.parseInt(line.replaceAll(".*[\\?&]wowzasessionid=([0-9]+).*", "$1"));
+						getLogger().info(logPrefix("getEdgeSessionId", appInstance) + ": Found sessionId '" + sessionId + "' on line '" + line + "'");
+						return sessionId;
+					}
+					if (chunklistNew.matcher(line).matches()) {
+						getLogger().debug(logPrefix("getEdgeSessionId", appInstance) + ": Found Wowza >= 3.6.x style chunklist. Parsing line '" + line + "'");
+						Integer sessionId = Integer.parseInt(line.replaceAll("chunklist_w([0-9]+).*", "$1"));
+						getLogger().info(logPrefix("getEdgeSessionId", appInstance) + ": Found sessionId '" + sessionId + "' on line '" + line + "'");
+						return sessionId;
+					}
+				} catch (NumberFormatException e) {
+					// No sessionId found on the current line. Proceed to the next.
+				}
+			}
+			in.close();
+			inputStreamReader.close();
+		} catch (java.io.FileNotFoundException e) {
+			// Expected IOException. Just print a simple error message and return 0.
+			getLogger().error(logPrefix("getEdgeSessionId", appInstance) + ": Could not fetch sessionId - got 404 / File Not Found exception from '" + baseUrl + queryString + "'. Check if stream is valid.");
+			return 0;
+		}
+		catch (IOException e) {
+			// Unexpected IOException. Print the whole stacktrace.
+			e.printStackTrace();
+		}
+		getLogger().error(logPrefix("getEdgeSessionId", appInstance) + ": Could not fetch sessionId from '" + baseUrl + queryString + "'");
+		return 0;
 	}
 }

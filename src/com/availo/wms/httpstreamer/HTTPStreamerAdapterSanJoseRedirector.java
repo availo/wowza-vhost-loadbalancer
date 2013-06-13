@@ -28,8 +28,8 @@ import java.util.regex.Pattern;
 import org.apache.mina.common.ByteBuffer;
 
 import com.availo.wms.plugin.vhostloadbalancer.ConfigCache;
-import com.availo.wms.plugin.vhostloadbalancer.LoadBalancerRedirectorBandwidth;
-import com.availo.wms.plugin.vhostloadbalancer.ServerListenerLoadBalancerListener;
+//import com.availo.wms.plugin.vhostloadbalancer.LoadBalancerRedirectorBandwidth;
+//import com.availo.wms.plugin.vhostloadbalancer.ServerListenerLoadBalancerListener;
 import com.availo.wms.plugin.vhostloadbalancer.ConfigCache.MissingPropertyException;
 import com.wowza.util.FasterByteArrayOutputStream;
 import com.wowza.wms.application.IApplicationInstance;
@@ -37,9 +37,9 @@ import com.wowza.wms.httpstreamer.sanjosestreaming.httpstreamer.HTTPStreamerAdap
 import com.wowza.wms.httpstreamer.model.IHTTPStreamerSession;
 import com.wowza.wms.logging.WMSLogger;
 import com.wowza.wms.logging.WMSLoggerFactory;
-import com.wowza.wms.plugin.loadbalancer.LoadBalancerListener;
-import com.wowza.wms.plugin.loadbalancer.LoadBalancerRedirect;
-import com.wowza.wms.server.Server;
+//import com.wowza.wms.plugin.loadbalancer.LoadBalancerListener;
+//import com.wowza.wms.plugin.loadbalancer.LoadBalancerRedirect;
+//import com.wowza.wms.server.Server;
 import com.wowza.wms.vhost.IVHost;
 
 /**
@@ -51,7 +51,7 @@ import com.wowza.wms.vhost.IVHost;
  * <BaseClass>com.availo.wms.httpstreamer.HTTPStreamerAdapterSanJoseRedirector</BaseClass>
  * 
  * @author Brynjar Eide <brynjar@availo.no>
- * @version 1.1, 2012-12-05
+ * @version 2.0b, 2013-06-13
  *
  */
 public class HTTPStreamerAdapterSanJoseRedirector extends HTTPStreamerAdapterSanJoseStreamer {
@@ -59,12 +59,12 @@ public class HTTPStreamerAdapterSanJoseRedirector extends HTTPStreamerAdapterSan
 	/**
 	 * LoadBalancerListener is where we'll get our LoadBalancerRedirectorBandwidth from
 	 */
-	private LoadBalancerListener listener = null;
+	//private LoadBalancerListener listener = null;
 
 	/**
 	 * LoadBalancerRedirectorBandwidth knows the IP address (or hostname) of the server that is deemed to be most suitable for the next connection
 	 */
-	private LoadBalancerRedirectorBandwidth redirector = null;
+	//private LoadBalancerRedirectorBandwidth redirector = null;
 
 	/**
 	 * ConfigCache is used to keep the configuration properties from Application.xml in memory,
@@ -73,16 +73,6 @@ public class HTTPStreamerAdapterSanJoseRedirector extends HTTPStreamerAdapterSan
 	private static ConfigCache config;
 	
 	/**
-	 * Optional property that translates the application name used on the LoadBalancerListener and redirect to a new name used on an edge server
-	 */
-	private String redirectAppName;
-
-	/**
-	 * Optional property that overrides the incoming port and redirect to a permanent port for all protocols 
-	 */
-	private int redirectPort;
-
-	/**
 	 * Keep track of whether all properties have been loaded for this instance
 	 */
 	private boolean initialized = false;
@@ -90,7 +80,7 @@ public class HTTPStreamerAdapterSanJoseRedirector extends HTTPStreamerAdapterSan
 	/**
 	 * Used for logging purposes
 	 */
-	private static String className = "HTTPStreamerAdapterCupertinoRedirector";
+	private static String className = "HTTPStreamerAdapterSanJoseRedirector";
 
 	/**
 	 * Rewrite all manifest.f4m files to contain absolute URLs
@@ -125,26 +115,42 @@ public class HTTPStreamerAdapterSanJoseRedirector extends HTTPStreamerAdapterSan
 
 		// Seems like we found everything we need to start manipulating the manifest with absolute URLs
 		appInstance = httpSession.getAppInstance();
-		getLogger().debug(String.format("%s: query string: %s", logPrefix("serviceMsg", appInstance), httpSession.getQueryStr()));
+		getLogger().debug(String.format("%s: query string: %s", logPrefix("serviceMsg", appInstance), httpSession.getQueryStr()), httpSession.getStream());
 		// Load the ConfigCache and all relevant properties
 		if (!initialized) {
 			init(appInstance);
 		}
 
-		getLogger().debug(String.format("%s: Received a manifest request to '%s'", logPrefix("serviceMsg", appInstance), req.getPath()));
+		getLogger().debug(String.format("%s: Received a manifest request to '%s'", logPrefix("serviceMsg", appInstance), req.getPath()), httpSession.getStream());
 
 		// This header is set in ModuleLoadBalancerRedirector.onHTTPSessionCreate(). Ignore any request without the header.
 		if (!resp.getHeaders().containsKey("X-LoadBalancer-Target")) {
 			return;
 		}
-
+		
 		// We have no data to manipulate.
 		/*if (resp.getBodyList().isEmpty()) {
 			return;
 		}*/
-		LoadBalancerRedirect redirect = redirector.getRedirect(appInstance.getVHost().getName());
+		//LoadBalancerRedirect redirect = redirector.getRedirect(appInstance.getVHost().getName());
 		String loadbalancerTargetProtocol = "http://";
-		String loadbalancerTarget = redirect.getHost();
+		//String loadbalancerTarget = redirect.getHost();
+		String loadbalancerTarget = resp.getHeaders().get("X-LoadBalancer-Target");
+		
+		String redirectAppName = null;
+		int redirectPort = 0;
+		
+		try {
+			redirectAppName = config.getRedirectAppName(appInstance);
+		} catch (MissingPropertyException e) {
+			e.printStackTrace();
+		}
+		try {
+			redirectPort = config.getRedirectPort(appInstance);
+		} catch (MissingPropertyException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
 
 		// Only add redirect to a specific port if we're using a non-standard port. (Ignore -1, which is the default value.)
 		if (redirectPort > 0 && redirectPort != 80 && redirectPort != 443) {
@@ -155,13 +161,14 @@ public class HTTPStreamerAdapterSanJoseRedirector extends HTTPStreamerAdapterSan
 		}
 
 		// Wowza only accepts manifest.f4m. Get the path from the requested URL by removing /manifest.f4m, followed by optional HTTP GET arguments. (?wowzasessionid=xyz)
-		getLogger().debug(String.format("%s: Attempting to remove manifest.f4m extension from '%s'", logPrefix("serviceMsg", appInstance), req.getPath()));
+		getLogger().debug(String.format("%s: Attempting to remove manifest.f4m extension from '%s'", logPrefix("serviceMsg", appInstance), req.getPath()), httpSession.getStream());
 		String loadbalancerTargetPath = req.getPath().replaceFirst("(?i)/manifest\\.f4m?(\\?[^\\/]*)?$", "");
 
 		// Check if we're redirecting to a different application, and rewrite if this is the case
 		if (redirectAppName != null && redirectAppName != appInstance.getApplication().getName()) {
 			String origName = appInstance.getApplication().getName();
-			getLogger().debug(String.format("%s: redirectAppName '%s' differs from the current appName '%s'. Trying to rewrite.", logPrefix("serviceMsg", appInstance), redirectAppName, origName));
+			getLogger().debug(String.format("%s: redirectAppName '%s' differs from the current appName '%s'. Trying to rewrite.",
+					logPrefix("serviceMsg", appInstance), redirectAppName, origName), httpSession.getStream());
 			String searchAppName = "^" + appInstance.getApplication().getName();
 			loadbalancerTargetPath = loadbalancerTargetPath.replaceFirst(searchAppName, redirectAppName);
 		}
@@ -169,10 +176,10 @@ public class HTTPStreamerAdapterSanJoseRedirector extends HTTPStreamerAdapterSan
 			loadbalancerTargetPath = loadbalancerTargetPath.startsWith("/") ? loadbalancerTargetPath : "/" + loadbalancerTargetPath;
 		}
 
-		getLogger().debug(String.format("%s: New path:  '%s'", logPrefix("serviceMsg", appInstance), loadbalancerTargetPath));
+		getLogger().debug(String.format("%s: New path:  '%s'", logPrefix("serviceMsg", appInstance), loadbalancerTargetPath), httpSession.getStream());
 		
 		String baseUrl = loadbalancerTargetProtocol + loadbalancerTarget + loadbalancerTargetPath;
-		rewriteHTML(appInstance, resp, baseUrl);
+		rewriteHTML(appInstance, resp, baseUrl, httpSession);
 	}
 	 
 	/**
@@ -182,8 +189,14 @@ public class HTTPStreamerAdapterSanJoseRedirector extends HTTPStreamerAdapterSan
 	 * @param baseUrl The absolute URL that will be used as a prefix to every relevant line in the manifest
 	 * @return
 	 */
-	private boolean rewriteHTML(IApplicationInstance appInstance, com.wowza.wms.server.RtmpResponseMessage resp, String baseUrl) {
+	private boolean rewriteHTML(IApplicationInstance appInstance, com.wowza.wms.server.RtmpResponseMessage resp, String baseUrl, IHTTPStreamerSession httpSession) {
 		boolean rewritten = false;
+		String origSessionId = httpSession.getSessionId();
+		String edgeSessionId = origSessionId;
+		if (resp.getHeaders().containsKey("X-LoadBalancer-SessionId")) {
+			edgeSessionId = resp.getHeaders().get("X-LoadBalancer-SessionId");
+		}
+		
 		try {
 			StringBuffer absoluteData = new StringBuffer();
 
@@ -206,11 +219,26 @@ public class HTTPStreamerAdapterSanJoseRedirector extends HTTPStreamerAdapterSan
 				// Rewrite media (stream) URL from relative to absolute <media width="640" height="480" url="media_b125000_w902486609.abst/">
 				if (mediaPattern.matcher(line).matches() && !mediaPatternAbsolute.matcher(line).matches()) {
 					line = line.replaceAll("(<media[^>]+) url=\"", "$1 url=\"" + baseUrl + "/");
+					if (edgeSessionId != origSessionId && edgeSessionId.matches("\\d+")) {
+						line = line.replaceAll("(<media[^>]+)_w[0-9]+(_[^>]+)?\\.abst\\/\">$", "$1_w" + edgeSessionId + "$2.abst/\">");
+						getLogger().debug(String.format("%s: Original session id (%s) rewritten to match session on edge server (%s)",
+								logPrefix("rewriteHTML", appInstance), origSessionId, edgeSessionId), httpSession.getStream());
+						/*getLogger().debug(String.format("%s: (Rewritten line: %s)",
+								logPrefix("rewriteHTML", appInstance), line), httpSession.getStream());*/
+					}
+					
 					rewritten = true;
 				}
 				 // Rewrite playlist URL from relative to absolute <bootstrapInfo profile="named" url="playlist_b125000_w1903190415.abst"/> 
 				if (bootstrapPattern.matcher(line).matches() && !bootstrapPatternAbsolute.matcher(line).matches()) {
 					line = line.replaceAll("(<bootstrapInfo[^>]+) url=\"", "$1 url=\""  + baseUrl + "/");
+					if (edgeSessionId != origSessionId && edgeSessionId.matches("\\d+")) {
+						line = line.replaceAll("(<bootstrapInfo[^>]+ url=\"[^>]+)_w[0-9]+", "$1_w"  + edgeSessionId);
+						getLogger().debug(String.format("%s: Original session id (%s) rewritten to match session on edge server (%s)",
+								logPrefix("rewriteHTML", appInstance), origSessionId, edgeSessionId), httpSession.getStream());
+						/*getLogger().debug(String.format("%s: (Rewritten line: %s)",
+								logPrefix("rewriteHTML", appInstance), line), httpSession.getStream());*/
+					}
 					rewritten = true;
 				}
 				absoluteData.append(line + "\n");
@@ -224,14 +252,15 @@ public class HTTPStreamerAdapterSanJoseRedirector extends HTTPStreamerAdapterSan
 				// Print the newly replaced data to it
 				printStream.print(absoluteData.toString());
 				printStream.close();
-				getLogger().info(String.format("%s: manifest.f4m rewritten with absolute URLs (%s)", logPrefix("rewriteHTML", appInstance), baseUrl));
+				getLogger().info(String.format("%s: manifest.f4m rewritten with absolute URLs (%s) - sessionId orig: %s -> edge: %s", 
+						logPrefix("rewriteHTML", appInstance), baseUrl, origSessionId, edgeSessionId), httpSession.getStream());
 			}
 			else {
-				getLogger().debug(String.format("%s: manifest could not be rewritten with absolute URLs", logPrefix("rewriteHTML", appInstance)));
+				getLogger().debug(String.format("%s: manifest could not be rewritten with absolute URLs", logPrefix("rewriteHTML", appInstance)), httpSession.getStream());
 			}
 
 		} catch (Exception e){
-			getLogger().error(String.format("%s: %s", logPrefix("rewriteHTML", appInstance), e.getMessage()));
+			getLogger().error(String.format("%s: %s", logPrefix("rewriteHTML", appInstance), e.getMessage()), httpSession.getStream());
 			e.printStackTrace();
 		}
 		return rewritten;
@@ -243,10 +272,11 @@ public class HTTPStreamerAdapterSanJoseRedirector extends HTTPStreamerAdapterSan
 	 */
 	private void init(IApplicationInstance appInstance) {
 		if (config == null) {
+			//getLogger().info(String.format("%s: Loading ConfigCache and LoadBalancerRedirectorBandwidth.", logPrefix("init", appInstance)));
 			getLogger().info(String.format("%s: Loading ConfigCache and LoadBalancerRedirectorBandwidth.", logPrefix("init", appInstance)));
 			config = ConfigCache.getInstance();
 		}
-		if (listener == null || redirector == null) {
+		/*if (listener == null || redirector == null) {
 			while (true) {
 				listener = (LoadBalancerListener) Server.getInstance().getProperties().get(ServerListenerLoadBalancerListener.PROP_LOADBALANCERLISTENER);
 				if (listener == null) {
@@ -262,8 +292,9 @@ public class HTTPStreamerAdapterSanJoseRedirector extends HTTPStreamerAdapterSan
 				}
 				break;
 			}
-		}
-		if (config.loadProperties(appInstance)) {
+		}*/
+		config.loadProperties(appInstance);
+		/*if (config.loadProperties(appInstance)) {
 			try {
 				redirectAppName = config.getRedirectAppName(appInstance);
 				//redirectScheme = config.getRedirectScheme(appInstance); // Not in use with HTTP streaming
@@ -273,7 +304,7 @@ public class HTTPStreamerAdapterSanJoseRedirector extends HTTPStreamerAdapterSan
 				// TODO Auto-generated catch block
 				e.printStackTrace();
 			}
-		}
+		}*/
 		getLogger().debug(String.format("%s: Finished initializing.", logPrefix("init", appInstance)));
 		initialized = true;
 	}

@@ -21,7 +21,6 @@ package com.availo.wms.plugin.vhostloadbalancer;
 
 import java.util.HashMap;
 import java.util.Map;
-import com.availo.wms.httpstreamer.HTTPStreamerAdapterCupertinoRedirector;
 import com.availo.wms.plugin.vhostloadbalancer.ConfigCache.VHost.Application;
 import com.wowza.wms.application.IApplicationInstance;
 import com.wowza.wms.logging.WMSLogger;
@@ -32,7 +31,7 @@ import com.wowza.wms.module.ModuleBase;
  * Class that is used by HTTPStreamerAdapter-redirectors, to avoid re-reading the config file for every request.
  * 
  * @author Brynjar Eide <brynjar@availo.no>
- * @version 1.1, 2012-12-05
+ * @version 2.0b, 2013-06-13
  */
 public class ConfigCache extends ModuleBase {
 
@@ -264,6 +263,14 @@ public class ConfigCache extends ModuleBase {
 	 * Should default to true if HTTP redirects are being used, as RTMP is the only protocol that currently allows running a call to getLoadBalancerRedirect().
 	 */
 	private boolean defaultRedirectOnConnect = true;
+	
+	/**
+	 * Whether to fetch a valid sessionId from the edge server and redirect with it
+	 * 
+	 * Adds a layer of complexity by "proxying" the incoming HTTP request to the edge server to start a session there
+	 * This is required if DVR functionality is enabled, and also makes sure logging on the edge server is valid
+	 */
+	private boolean defaultRewriteSessionId = true;
 
 	/**
 	 * Where we keep the ConfigCache object used by all other classes
@@ -364,7 +371,9 @@ public class ConfigCache extends ModuleBase {
 	 */
 	private Object getProperty(String vhostName, String loadbalancerAppName, String propertyName) throws MissingPropertyException {
 		if (isValid(vhostName, loadbalancerAppName, propertyName)) {
-			return getVHost(vhostName).getApplication(loadbalancerAppName).getProperty(propertyName);
+			Object value = getVHost(vhostName).getApplication(loadbalancerAppName).getProperty(propertyName);
+			getLogger().debug(String.format("ConfigCache.getProperty[%s/%s]: Found property '%s'", vhostName, loadbalancerAppName, propertyName));
+			return value; 
 		}
 		if (!isValid(vhostName)) {
 			throw new MissingPropertyException("VHost '" + vhostName + "' is not cached.");
@@ -438,7 +447,7 @@ public class ConfigCache extends ModuleBase {
 	 */
 	public String getRedirectAppName(String vhostName, String loadbalancerAppName) throws MissingPropertyException {
 		String propertyName = "redirectAppName";
-		if (isValid(vhostName, loadbalancerAppName, propertyName)) {  
+		if (isValid(vhostName, loadbalancerAppName, propertyName)) {
 			return (String) getProperty(vhostName, loadbalancerAppName, propertyName);
 		}
 		getLogger().debug(String.format("ConfigCache.getRedirectAppName[%s/%s]: Could not find property '%s'. Returning default value.", vhostName, loadbalancerAppName, propertyName));
@@ -539,6 +548,32 @@ public class ConfigCache extends ModuleBase {
 	public boolean getRedirectOnConnect(IApplicationInstance appInstance) throws MissingPropertyException{
 		return getRedirectOnConnect(appInstance.getVHost().getName(), appInstance.getApplication().getName());
 	}
+	
+	/**
+	 * Get cached rewriteSessionId setting
+	 * @param vhostName
+	 * @param loadbalancerAppName
+	 * @return
+	 * @throws MissingPropertyException
+	 */
+	public boolean getRewriteSessionId(String vhostName, String loadbalancerAppName) throws MissingPropertyException {
+		String propertyName = "rewriteSessionId";
+		if (isValid(vhostName, loadbalancerAppName, propertyName)) {
+			return (Boolean) getProperty(vhostName, loadbalancerAppName, propertyName);
+		}
+		getLogger().debug(String.format("ConfigCache.getRewriteSessionId[%s/%s]: Could not find property '%s'. Returning default value.", vhostName, loadbalancerAppName, propertyName)); 
+		return defaultRewriteSessionId;
+	}
+	
+	/**
+	 * Get cached rewriteSessionId setting
+	 * @param appInstance
+	 * @return
+	 * @throws MissingPropertyException
+	 */
+	public boolean getRewriteSessionId(IApplicationInstance appInstance) throws MissingPropertyException{
+		return getRewriteSessionId(appInstance.getVHost().getName(), appInstance.getApplication().getName());
+	}
 
 	/**
 	 * Load and cache all known properties for the specified application 
@@ -555,6 +590,7 @@ public class ConfigCache extends ModuleBase {
 			app.setProperty("redirectAppName", appInstance.getProperties().getPropertyStr("redirectAppName", defaultRedirectAppName));
 			app.setProperty("redirectPort", appInstance.getProperties().getPropertyInt("redirectPort", defaultRedirectPort));
 			app.setProperty("redirectOnConnect", appInstance.getProperties().getPropertyBoolean("redirectOnConnect", defaultRedirectOnConnect));
+			app.setProperty("rewriteSessionId", appInstance.getProperties().getPropertyBoolean("rewriteSessionId", defaultRewriteSessionId));
 			app.setIsCached(true);
 		}
 		return app.isCached();
@@ -581,7 +617,7 @@ public class ConfigCache extends ModuleBase {
 	 * @return WMSLogger object used to log warnings or debug messages
 	 */
 	protected static WMSLogger getLogger() {
-		return WMSLoggerFactory.getLogger(HTTPStreamerAdapterCupertinoRedirector.class);
+		return WMSLoggerFactory.getLogger(ConfigCache.class);
 	}
 	
 	/**
