@@ -1,4 +1,4 @@
-# WowzaMediaServer VHost-capable LoadBalancer
+# VHost-capable LoadBalancer for Wowza
 
 ## Description
 
@@ -38,16 +38,7 @@ github -- at -- segfault.no.
  * Support for DVR streams, which require that session Ids are valid for
    the edge servers. Thanks to Thomas Swedin for reporting this problem.
 
-### 2012-11-15
-
- * Added support for SMIL files
- * Updated the code to work with HTTP playlists (cupertino + san jose) in
-   Wowza Media Server 3.5.0, which was released on November 9th.
- * Uploaded a precompiled .jar-file for 3.5.0, and renamed the old .jar-file.
-   No configuration changes are required, but the old file, named
-   'availo-vhostloadbalancer.jar', needs to be replaced with the new file.
-
-### 2012-12-05 - bugfixes, new license and new features
+### 2012-12-05 - Bugfixes, new license and new features
 
  * All files that have been rewritten are now using Apache 2 License.
    (The exceptions are the two ServerListener-classes)
@@ -59,6 +50,15 @@ github -- at -- segfault.no.
  * Removed the old 3.1.2 .jar-file and renamed the 3.5.0-file. The current
    availo-vhost-loadbalancer-3.jar" file should hopefully work on both/all
    current updates of Wowza Media Server 3.x.
+
+### 2012-11-15
+
+ * Added support for SMIL files
+ * Updated the code to work with HTTP playlists (cupertino + san jose) in
+   Wowza Media Server 3.5.0, which was released on November 9th.
+ * Uploaded a precompiled .jar-file for 3.5.0, and renamed the old .jar-file.
+   No configuration changes are required, but the old file, named
+   'availo-vhostloadbalancer.jar', needs to be replaced with the new file.
 
 ## Prerequisites
 
