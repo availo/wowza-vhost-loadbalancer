@@ -56,7 +56,7 @@ public class LoadBalancerMonitorVHost extends LoadBalancerMonitorDefault {
 		// First find the global variables per server, in addition to the options handled by the original LoadBalancer module.
 		Server server = Server.getInstance();
 		WMSProperties props = server.getProperties();
-		String serverWeight = props.getPropertyStr("loadBalancerSenderServerWeight", "1");
+		Integer serverWeight = props.getPropertyInt("loadBalancerSenderServerWeight", 1);
 		// Store it in a HashMap for the time being, and then add it to the JSON object later on
 		Map<String, Object> vhostProperties = new HashMap<String, Object>();
 

@@ -352,8 +352,18 @@ public class LoadBalancerRedirectorBandwidth implements ILoadBalancerRedirector 
 				Object json = JSONValue.parse(customProperties);
 				JSONObject jsonServer = (JSONObject)json;
 				JSONObject vhosts = (JSONObject)jsonServer.get("vhosts");
-				checkWeight = Integer.parseInt((String)jsonServer.get("weight"));
+				Object rawWeight = jsonServer.get("weight");
+
+				if (rawWeight instanceof Long) {
+					checkWeight = ((Long)jsonServer.get("weight")).intValue();
+				}
+				else {
+					// Backwards compatilibity: https://github.com/availo/wowza-vhost-loadbalancer/issues/1
+					checkWeight = Integer.parseInt((String)jsonServer.get("weight"));
+				}
+
 				serverHolder.vhosts = (Map<String, Object>)vhosts;
+
 			}
 
 			serverHolder.status = status;
